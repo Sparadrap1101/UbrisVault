@@ -1,0 +1,6 @@
+node_modules
+Setup.txt
+.env
+yarn.lock
+artifacts
+cache
