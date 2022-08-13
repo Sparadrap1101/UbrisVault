@@ -50,7 +50,7 @@ contract UbrisVault {
 
     // - Récupère l'argent des users
     // - Import OpenZeppelin ERC20, ask for address of the ERC20 to deposit, call transferFrom(), check for approve() function to implement
-    function depositFunds(address tokenAddress, uint256 amount) public {
+    function depositFunds(address tokenAddress, uint256 amount) public payable {
         ERC20 token = ERC20(tokenAddress);
         token.transferFrom(msg.sender, address(this), amount);
         s_totalBalances[msg.sender][tokenAddress] += amount;
@@ -70,13 +70,13 @@ contract UbrisVault {
     // - Retire l'argent d'un user d'une stratégie
 
     /// Gestion des stratégies
-    /*
+
     // - Ajoute une nouvelle stratégie (onlyOwner ?)
-    function addStrategy(address strategyAddress, string name) public {
-        require(!s_strategies[strategyAddress], "This strategy already exist.");
+    function addStrategy(address strategyAddress, string memory name) public {
+        require(!s_strategies[strategyAddress].isWhitelist, "This strategy is already whitelist.");
         Strategy memory strategy;
         strategy.name = name;
-        strategy.strategyState = 0; // = OPEN
+        strategy.strategyState = StrategyState.OPEN; // = OPEN
         strategy.isWhitelist = true;
 
         s_strategies[strategyAddress] = strategy;
@@ -85,28 +85,28 @@ contract UbrisVault {
     }
 
     // - Retire une stratégie (onlyOwner ?) (Problème c'est que si je fais comme ça, une stratégie qui a été retirer pourra plus jamais être remise)
-    function removeStrategy(address strategyAddress) public {
+    function removeStrategy(address strategyAddress) public view {
         Strategy memory strategy = s_strategies[strategyAddress];
         require(strategy.isWhitelist, "This strategy has already been removed.");
 
-        strategy.strategyState = 1; // = CLOSE
+        strategy.strategyState = StrategyState.CLOSE; // = CLOSE
         strategy.isWhitelist = false;
 
         // emit removeStrategyFromWhitelist()
     }
 
     // - Met en pause une stratégie (onlyOwner ?)
-    function pauseStrategy(address strategyAddress) public {
+    function pauseStrategy(address strategyAddress) public view {
         Strategy memory strategy = s_strategies[strategyAddress];
-        require(strategy.strategyState == 0, "This strategy is already in pause.");
-        strategy.strategyState = 1; // = CLOSE
+        require(strategy.strategyState == StrategyState.OPEN, "This strategy is already in pause.");
+        strategy.strategyState = StrategyState.CLOSE; // = CLOSE
     }
 
     // - Réactive une stratégie (onlyOwner ?)
-    function resumeStrategy(address strategyAddress) public {
+    function resumeStrategy(address strategyAddress) public view {
         Strategy memory strategy = s_strategies[strategyAddress];
-        require(strategy.strategyState == 1, "This strategy is already active.");
-        strategy.strategyState = 0; // = OPEN
+        require(strategy.strategyState == StrategyState.CLOSE, "This strategy is already active.");
+        strategy.strategyState = StrategyState.OPEN; // = OPEN
     }
 
     // - Dis aux stratégies de récupérer le yield
@@ -116,11 +116,7 @@ contract UbrisVault {
     // - Récupérer la liste d'adresses de toutes les stratégies
 
     // - Récupérer la balance totale du protocole pour un token en particulier (hors stratégies ici)
-    function getTokenBalance(address tokenAddress)
-        public
-        view
-        returns (uint256)
-    {
+    function getTokenBalance(address tokenAddress) public view returns (uint256) {
         ERC20 token = ERC20(tokenAddress);
         return token.balanceOf(address(this));
     }
@@ -128,12 +124,8 @@ contract UbrisVault {
     // - Récupérer la balance d'une stratégie en particulier (voir de toutes les stratégies en même temps si jamais)
 
     // - Récupérer la balance d'un utilisateur en particulier pour un token en particulier
-    function getUserBalance(address user, address token)
-        public
-        view
-        returns (uint256)
-    {
-        return s_totalBalances[user][token];
+    function getUserBalance(address userAddress, address tokenAddress) public view returns (uint256) {
+        return s_totalBalances[userAddress][tokenAddress];
     }
 
     // - Récupérer l'adresse ou les noms des stratégies dans lesquelles est un utilisateur en particulier
@@ -145,18 +137,11 @@ contract UbrisVault {
     // - Récupérer l'état d'une stratégie (OPEN | CLOSE)
     function getStrategyState(address strategyAddress) public view returns (StrategyState) {
         return s_strategies[strategyAddress].strategyState;
-    } */
-}
+    }
 
-/* Partie Approve pour add les fonds. A faire plutôt en js, a voir si c'était ça le problème.
+    function testInteract(uint256 number) public pure returns (uint256) {
+        number++;
 
-contract ntm {
-    function approve(address tokenAddress, address contractAddress, uint256 amount) public {
-        ERC20 token = ERC20(tokenAddress);
-        token.approve(contractAddress, amount);
-
-        UbrisVault ubrisContract = UbrisVault(contractAddress);
-        ubrisContract.depositFunds(tokenAddress, amount, msg.sender);
+        return number;
     }
 }
-*/
