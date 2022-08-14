@@ -3,6 +3,7 @@
 pragma solidity ^0.8.7;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "./interfaces/IStrategy.sol";
 
 contract UbrisVault {
     //// Variables
@@ -66,6 +67,24 @@ contract UbrisVault {
     }
 
     // - Envoi l'argent d'un user dans une stratégie
+    function enterStrategy(
+        address strategyAddress,
+        address tokenAddress,
+        uint256 amount
+    ) public {
+        require(s_strategies[strategyAddress].isWhitelist, "This strategy is not on whitelist.");
+        require(s_strategies[strategyAddress].strategyState == StrategyState.OPEN, "This strategy is not open.");
+        IStrategy strategyInterface = IStrategy(strategyAddress);
+
+        require(strategyInterface.getTokenToDeposit() == tokenAddress, "This token is not accepted on this strategy.");
+        require(s_totalBalances[msg.sender][tokenAddress] >= amount, "You don't have enough funds to enter this strategy.");
+        ERC20 token = ERC20(tokenAddress);
+
+        token.approve(strategyAddress, amount); // En pratique on pourrait mettre amount très grand et faire un if
+        strategyInterface.enterStrategy(tokenAddress, msg.sender, amount);
+
+        // emit enterStrategy()
+    }
 
     // - Retire l'argent d'un user d'une stratégie
 
@@ -138,6 +157,10 @@ contract UbrisVault {
     function getStrategyState(address strategyAddress) public view returns (StrategyState) {
         return s_strategies[strategyAddress].strategyState;
     }
+
+    // - Récupérer le nom d'une stratégie à partir de son adresse
+
+    // - Récupérer l'adresse d'une stratégie à partir de son nom (plus chiant)
 
     function testInteract(uint256 number) public pure returns (uint256) {
         number++;
