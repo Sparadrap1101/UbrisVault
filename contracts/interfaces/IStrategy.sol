@@ -3,8 +3,6 @@
 pragma solidity ^0.8.7;
 
 interface IStrategy {
-    function strategy() external; // Where the strategy structure is set.
-
     function enterStrategy(
         address tokenAddress,
         address userAddress,
