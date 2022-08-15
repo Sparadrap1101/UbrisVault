@@ -3,13 +3,23 @@
 pragma solidity ^0.8.7;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract StrategyTest {
+contract StrategyTest is Ownable {
     address private token;
 
+    // Plus judicieux de mettre un % qu'un amount fixe pour la balance car elle sera amené à pas mal bouger
+    // Peut être un ERC20 comme font Yearn etc avec les yToken (check comment ils font exactement).
     mapping(address => uint256) private s_userBalances;
 
     string public strategyTest = "Not called yet.";
+
+    // Ajouter des events ?
+
+    constructor(address _token) {
+        token = _token;
+        // Donner l'ownership au contrat factory et vérifier qu'il l'a bien avant d'add une stratégie ?
+    }
 
     function strategy() internal {
         strategyTest = "Success";
@@ -41,8 +51,9 @@ contract StrategyTest {
         strategyTest = "Recolted.";
     } // Factory contract tell strategy to recolt yield here.
 
-    function setTokenToDeposit(address newTokenAddress) public {
-        // OnlyOwner()
+    function setTokenToDeposit(address newTokenAddress) public onlyOwner {
+        // Si l'owner est la factory, faire une fonction dedans qui permet de modifier les adresses
+        // des tokens dans les stratégies si nécessaire.
         require(newTokenAddress != address(0), "This address is not available");
         token = newTokenAddress;
     }
