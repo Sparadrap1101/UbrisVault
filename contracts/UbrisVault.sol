@@ -8,6 +8,8 @@ import "./interfaces/IStrategy.sol";
 contract UbrisVault {
     //// Variables
 
+    /// Classic variables
+
     /// Enums
 
     // - Etat des stratégies, OPEN ou CLOSE
@@ -83,10 +85,24 @@ contract UbrisVault {
         token.approve(strategyAddress, amount); // En pratique on pourrait mettre amount très grand et faire un if
         strategyInterface.enterStrategy(tokenAddress, msg.sender, amount);
 
+        s_totalBalances[msg.sender][tokenAddress] -= amount;
+
         // emit enterStrategy()
     }
 
     // - Retire l'argent d'un user d'une stratégie
+    function exitStrategy(address strategyAddress, uint256 amount) public {
+        // P'tete vérifier si la stratégie existe avant ? (avec != adresse(0) ?)
+        // Mais pas si elle est whitelist ou autre histoire de pouvoir withdraw même en cas de remove() ou pause().
+        IStrategy strategyInterface = IStrategy(strategyAddress);
+        require(strategyInterface.getUserBalance(msg.sender) >= amount, "You don't have enough funds to withdraw.");
+
+        strategyInterface.exitStrategy(msg.sender, amount);
+
+        s_totalBalances[msg.sender][strategyInterface.getTokenToDeposit()] += amount;
+
+        // emit exitStrategy()
+    }
 
     /// Gestion des stratégies
 
@@ -128,7 +144,18 @@ contract UbrisVault {
         strategy.strategyState = StrategyState.OPEN; // = OPEN
     }
 
-    // - Dis aux stratégies de récupérer le yield
+    // - Dis aux stratégies de récupérer le yield (OnlyOwner)
+    function recoltYield(address strategyAddress) public {
+        // P'tete ajouter une liste d'adresses plutôt pour tout récolter d'un coup, ou rien et ça récupère
+        // une liste pré-enregistré des adresses (mais besoin d'un changement sur le mapping du haut).
+        require(s_strategies[strategyAddress].isWhitelist, "This strategy is not on whitelist.");
+        require(s_strategies[strategyAddress].strategyState == StrategyState.OPEN, "This strategy is not open.");
+        IStrategy strategyInterface = IStrategy(strategyAddress);
+
+        strategyInterface.recolt();
+
+        // emit recolted()
+    }
 
     /// Get functions
 
@@ -141,6 +168,10 @@ contract UbrisVault {
     }
 
     // - Récupérer la balance d'une stratégie en particulier (voir de toutes les stratégies en même temps si jamais)
+    function getTokenBalanceStrategy(address tokenAddress, address strategyAddress) public view returns (uint256) {
+        ERC20 token = ERC20(tokenAddress);
+        return token.balanceOf(strategyAddress); // P'tete pas la meilleure façon de faire avec le yieldfarming.
+    }
 
     // - Récupérer la balance d'un utilisateur en particulier pour un token en particulier
     function getUserBalance(address userAddress, address tokenAddress) public view returns (uint256) {
@@ -159,6 +190,9 @@ contract UbrisVault {
     }
 
     // - Récupérer le nom d'une stratégie à partir de son adresse
+    function getStrategyName(address strategyAddress) public view returns (string memory) {
+        return s_strategies[strategyAddress].name;
+    }
 
     // - Récupérer l'adresse d'une stratégie à partir de son nom (plus chiant)
 
