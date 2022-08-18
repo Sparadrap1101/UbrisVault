@@ -27,6 +27,13 @@ module.exports = {
     },
   },
 
+  gasReporter: {
+    enabled: true,
+    currency: "USD",
+    outputFile: "gas-report.txt",
+    noColors: true,
+  },
+
   solidity: "0.8.7",
 
   namedAccounts: {
