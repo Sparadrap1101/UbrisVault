@@ -116,7 +116,7 @@ contract UbrisVault is Ownable {
         require(s_strategies[strategyAddress].strategyState == StrategyState.OPEN, "This strategy is not open.");
         IStrategy strategyInterface = IStrategy(strategyAddress);
 
-        require(strategyInterface.getTokenToDeposit() == tokenAddress, "This token is not accepted on this strategy.");
+        require(strategyInterface.getTokenToDeposit() == tokenAddress, "This token is not accepted in this strategy.");
         require(s_totalBalances[msg.sender][tokenAddress] >= amount, "You don't have enough funds to enter this strategy.");
         ERC20 token = ERC20(tokenAddress);
 
