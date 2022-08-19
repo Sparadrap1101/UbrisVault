@@ -4,7 +4,7 @@ const Erc20Token = require("/home/hhk/Desktop/UbrisVault/UbrisVault/artifacts/co
 const { BigNumber } = require("ethers");
 
 describe("UbrisVault Unit Tests", function () {
-  let vault, strategy, token, owner, addr1, addr2, ownerBalance, amount;
+  let vault, strategy, token, token2, owner, addr1, addr2, ownerBalance, amount;
 
   beforeEach(async function () {
     [owner, addr1, addr2] = await ethers.getSigners();
@@ -16,13 +16,21 @@ describe("UbrisVault Unit Tests", function () {
     token = await Token.deploy("LINKCHAIN token", "LINK", BigNumber.from(100_000).mul((1e18).toString()));
     await token.deployed();
 
-    const Strategy = await ethers.getContractFactory("StrategyTest");
-    strategy = await Strategy.deploy(token.address);
-    await strategy.deployed();
-
     await token.connect(owner).approve(vault.address, BigNumber.from(100_000).mul((1e18).toString()));
     await token.connect(addr1).approve(vault.address, BigNumber.from(100_000).mul((1e18).toString()));
     await token.connect(addr2).approve(vault.address, BigNumber.from(100_000).mul((1e18).toString()));
+
+    const Token2 = await ethers.getContractFactory("Erc20Token");
+    token2 = await Token2.deploy("DAI Token", "DAI", BigNumber.from(100_000).mul((1e18).toString()));
+    await token2.deployed();
+
+    await token2.connect(owner).approve(vault.address, BigNumber.from(100_000).mul((1e18).toString()));
+    await token2.connect(addr1).approve(vault.address, BigNumber.from(100_000).mul((1e18).toString()));
+    await token2.connect(addr2).approve(vault.address, BigNumber.from(100_000).mul((1e18).toString()));
+
+    const Strategy = await ethers.getContractFactory("StrategyTest");
+    strategy = await Strategy.deploy(token.address);
+    await strategy.deployed();
 
     ownerBalance = (await token.balanceOf(owner.address)).toString();
     amount = BigNumber.from(100).mul((1e18).toString()).toString();
@@ -275,6 +283,86 @@ describe("UbrisVault Unit Tests", function () {
       await expect(vault.resumeStrategy(strategy.address))
         .to.emit(vault, "StrategyResumed")
         .withArgs(strategy.address, name);
+    });
+  });
+
+  describe("enterStrategy() :", function () {
+    it("Should reverts when you enter address(0) for the strategy", async function () {
+      await expect(
+        vault.enterStrategy("0x0000000000000000000000000000000000000000", token.address, amount)
+      ).to.be.revertedWith("This strategy doesn't exist.");
+    });
+
+    it("Should reverts when you enter address(0) for the token", async function () {
+      await expect(
+        vault.enterStrategy(strategy.address, "0x0000000000000000000000000000000000000000", amount)
+      ).to.be.revertedWith("This token doesn't exist.");
+    });
+
+    it("Should reverts if the strategy is not whitelist", async function () {
+      await expect(vault.enterStrategy(strategy.address, token.address, amount)).to.be.revertedWith(
+        "This strategy is not on whitelist."
+      );
+    });
+
+    it("Should reverts if the state of the strategy is CLOSE", async function () {
+      const name = "Best Strategy";
+      await vault.addStrategy(strategy.address, name);
+      await vault.pauseStrategy(strategy.address);
+
+      await expect(vault.enterStrategy(strategy.address, token.address, amount)).to.be.revertedWith(
+        "This strategy is not open."
+      );
+    });
+
+    it("Should reverts if the token is not accepted in this strategy", async function () {
+      const name = "Best Strategy";
+      await vault.addStrategy(strategy.address, name);
+
+      await expect(vault.enterStrategy(strategy.address, token2.address, amount)).to.be.revertedWith(
+        "This token is not accepted in this strategy."
+      );
+    });
+
+    it("Should reverts if user haven't enough funds on the protocol", async function () {
+      const name = "Best Strategy";
+      await vault.addStrategy(strategy.address, name);
+
+      await expect(vault.enterStrategy(strategy.address, token.address, amount)).to.be.revertedWith(
+        "You don't have enough funds to enter this strategy."
+      );
+    });
+
+    it("Should transfer user funds to the strategy", async function () {
+      const name = "Best Strategy";
+      await vault.addStrategy(strategy.address, name);
+      await vault.depositFunds(token.address, amount);
+
+      assert.equal((await token.balanceOf(vault.address)).toString(), amount);
+      assert.equal((await token.balanceOf(strategy.address)).toString(), 0);
+      await vault.enterStrategy(strategy.address, token.address, amount);
+      assert.equal((await token.balanceOf(vault.address)).toString(), 0);
+      assert.equal((await token.balanceOf(strategy.address)).toString(), amount);
+    });
+
+    it("Should decrements funds counter of the user in the protocol", async function () {
+      const name = "Best Strategy";
+      await vault.addStrategy(strategy.address, name);
+      await vault.depositFunds(token.address, amount);
+
+      assert.equal((await vault.getUserBalance(owner.address, token.address)).toString(), amount);
+      await vault.enterStrategy(strategy.address, token.address, amount);
+      assert.equal((await vault.getUserBalance(owner.address, token.address)).toString(), 0);
+    });
+
+    it("Should emits an event", async function () {
+      const name = "Best Strategy";
+      await vault.addStrategy(strategy.address, name);
+      await vault.depositFunds(token.address, amount);
+
+      await expect(vault.enterStrategy(strategy.address, token.address, amount))
+        .to.emit(vault, "UserEnterStrategy")
+        .withArgs(strategy.address, name, owner.address, amount);
     });
   });
 });
