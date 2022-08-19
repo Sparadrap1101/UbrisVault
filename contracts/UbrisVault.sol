@@ -15,9 +15,9 @@ contract UbrisVault is Ownable {
 
     // - Etat des stratégies, OPEN ou CLOSE
     enum StrategyState {
-        OPEN,
-        CLOSE
-    } // 0 : OPEN, 1 : CLOSE
+        CLOSE,
+        OPEN
+    } // 0 : CLOSE, 1 : OPEN
 
     /// Structures
 
@@ -164,7 +164,7 @@ contract UbrisVault is Ownable {
     // - Retire une stratégie
     function removeStrategy(address strategyAddress) public onlyOwner {
         require(strategyAddress != address(0), "This strategy doesn't exist.");
-        Strategy memory strategy = s_strategies[strategyAddress];
+        Strategy storage strategy = s_strategies[strategyAddress];
         require(strategy.isWhitelist, "This strategy has already been removed.");
 
         strategy.strategyState = StrategyState.CLOSE;
@@ -176,7 +176,7 @@ contract UbrisVault is Ownable {
     // - Met en pause une stratégie
     function pauseStrategy(address strategyAddress) public onlyOwner {
         require(strategyAddress != address(0), "This strategy doesn't exist.");
-        Strategy memory strategy = s_strategies[strategyAddress];
+        Strategy storage strategy = s_strategies[strategyAddress];
         require(strategy.isWhitelist, "This strategy is not whitelist.");
         require(strategy.strategyState == StrategyState.OPEN, "This strategy is already in pause.");
 
@@ -188,7 +188,7 @@ contract UbrisVault is Ownable {
     // - Réactive une stratégie
     function resumeStrategy(address strategyAddress) public onlyOwner {
         require(strategyAddress != address(0), "This strategy doesn't exist.");
-        Strategy memory strategy = s_strategies[strategyAddress];
+        Strategy storage strategy = s_strategies[strategyAddress];
         require(strategy.isWhitelist, "This strategy is not whitelist.");
         require(strategy.strategyState == StrategyState.CLOSE, "This strategy is already active.");
 
@@ -249,6 +249,11 @@ contract UbrisVault is Ownable {
     // - Récupérer le nom d'une stratégie à partir de son adresse
     function getStrategyName(address strategyAddress) public view returns (string memory) {
         return s_strategies[strategyAddress].name;
+    }
+
+    // - Vérifier si une stratégie est whitelist ou non
+    function isStrategyWhitelist(address strategyAddress) public view returns (bool) {
+        return s_strategies[strategyAddress].isWhitelist;
     }
 
     // - Récupérer l'adresse d'une stratégie à partir de son nom (Offchain avec les events ?)
