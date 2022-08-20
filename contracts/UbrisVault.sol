@@ -94,9 +94,11 @@ contract UbrisVault is Ownable {
     // - Retire l'argent des users
     function withdrawFunds(address tokenAddress, uint256 amount) public {
         require(tokenAddress != address(0), "This token doesn't exist.");
-        require(s_totalBalances[msg.sender][tokenAddress] >= amount, "You can't withdraw more than your wallet funds.");
+        require(
+            s_totalBalances[msg.sender][tokenAddress] >= amount,
+            "You can't withdraw more than your wallet funds, check your strategies."
+        );
         ERC20 token = ERC20(tokenAddress);
-        require(token.balanceOf(address(this)) >= amount, "Not enough funds, please withdraw from the strategy before.");
 
         token.transfer(msg.sender, amount);
         s_totalBalances[msg.sender][tokenAddress] -= amount;
