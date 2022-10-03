@@ -150,7 +150,6 @@ contract UbrisVault is Ownable {
     function addStrategy(address strategyAddress, string memory name) public onlyOwner {
         require(strategyAddress != address(0), "This strategy doesn't exist.");
         require(!s_strategies[strategyAddress].isWhitelist, "This strategy is already whitelist.");
-        // Peut être testé si on est bien l'owner de la stratégie plus tard.
 
         Strategy memory strategy;
         // Attention car si le name est le même pour plusieurs stratégies et ça peut poser prbl pour les events
