@@ -4,9 +4,12 @@ pragma solidity ^0.8.7;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "../interfaces/IPoolAave.sol";
 
 contract AaveBasicStrategy is Ownable {
     address private token;
+    address private aaveAddress;
+    IPool aave;
 
     // Plus judicieux de mettre un % qu'un amount fixe pour la balance car elle sera amené à pas mal bouger
     // Peut être un ERC20 comme font Yearn etc avec les yToken (check comment ils font exactement).
@@ -16,8 +19,10 @@ contract AaveBasicStrategy is Ownable {
 
     // Ajouter des events ?
 
-    constructor(address _token) {
+    constructor(address _token, address _aaveAddress) {
         token = _token;
+        aaveAddress = _aaveAddress;
+        aave = IPool(_aaveAddress);
         // Donner l'ownership au contrat factory et vérifier qu'il l'a bien avant d'add une stratégie ?
     }
 
@@ -50,6 +55,16 @@ contract AaveBasicStrategy is Ownable {
     function recolt() public {
         strategyTest = "Recolted.";
     } // Factory contract tell strategy to recolt yield here.
+
+    function setAaveAddress(address _aaveAddress) public onlyOwner {
+        require(_aaveAddress != address(0), "This address is not available");
+        aaveAddress = _aaveAddress;
+        aave = IPool(_aaveAddress);
+    }
+
+    function getAaveAddress() public view returns (address) {
+        return aaveAddress;
+    }
 
     function setTokenToDeposit(address newTokenAddress) public onlyOwner {
         // Si l'owner est la factory, faire une fonction dedans qui permet de modifier les adresses
