@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "../interfaces/IPoolAave.sol";
 
 contract AaveBasicStrategy is Ownable {
-    address private token;
+    address private tokenAddress;
     address private aaveAddress;
     IPool aave;
 
@@ -19,11 +19,22 @@ contract AaveBasicStrategy is Ownable {
 
     // Ajouter des events ?
 
-    constructor(address _token, address _aaveAddress) {
-        token = _token;
+    constructor(address _tokenAddress, address _aaveAddress) {
+        tokenAddress = _tokenAddress;
         aaveAddress = _aaveAddress;
         aave = IPool(_aaveAddress);
         // Donner l'ownership au contrat factory et vérifier qu'il l'a bien avant d'add une stratégie ?
+    }
+
+    function test(address asset, uint256 amount) public {
+        ERC20 token = ERC20(asset);
+        token.approve(aaveAddress, amount);
+
+        aave.supply(asset, amount, address(this), 0);
+    }
+
+    function test2(address asset, uint256 amount) public {
+        aave.withdraw(asset, amount, address(this));
     }
 
     function strategy() internal {
@@ -31,13 +42,13 @@ contract AaveBasicStrategy is Ownable {
     } // Where the strategy structure is set.
 
     function enterStrategy(
-        address tokenAddress,
+        address _tokenAddress,
         address userAddress,
         uint256 amount
     ) public payable {
-        require(tokenAddress == token, "This token is not available in this strategy.");
-        require(token != address(0), "This address is not valid for ERC20 token.");
-        ERC20 Erc20Token = ERC20(token);
+        require(_tokenAddress == tokenAddress, "This token is not available in this strategy.");
+        require(tokenAddress != address(0), "This address is not valid for ERC20 token.");
+        ERC20 Erc20Token = ERC20(tokenAddress);
         Erc20Token.transferFrom(msg.sender, address(this), amount);
         s_userBalances[userAddress] += amount;
 
@@ -46,8 +57,8 @@ contract AaveBasicStrategy is Ownable {
 
     function exitStrategy(address userAddress, uint256 amount) public {
         require(s_userBalances[userAddress] >= amount, "You can't withdraw more than your wallet funds.");
-        require(token != address(0), "This address is not valid for ERC20 token.");
-        ERC20 Erc20Token = ERC20(token);
+        require(tokenAddress != address(0), "This address is not valid for ERC20 token.");
+        ERC20 Erc20Token = ERC20(tokenAddress);
         Erc20Token.transfer(msg.sender, amount);
         s_userBalances[userAddress] -= amount;
     } // Factory contract withdraw user funds here.
@@ -70,11 +81,11 @@ contract AaveBasicStrategy is Ownable {
         // Si l'owner est la factory, faire une fonction dedans qui permet de modifier les adresses
         // des tokens dans les stratégies si nécessaire.
         require(newTokenAddress != address(0), "This address is not available");
-        token = newTokenAddress;
+        tokenAddress = newTokenAddress;
     }
 
     function getTokenToDeposit() public view returns (address) {
-        return token;
+        return tokenAddress;
     } // Return token address to deposit on strategy.
 
     function getUserBalance(address userAddress) public view returns (uint256) {
