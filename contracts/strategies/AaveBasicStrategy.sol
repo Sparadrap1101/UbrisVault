@@ -8,6 +8,7 @@ import "../interfaces/IPoolAave.sol";
 
 contract AaveBasicStrategy is Ownable {
     address private tokenAddress;
+    address private tokenToBorrow;
     address private aaveAddress;
     IPool aave;
 
@@ -19,26 +20,38 @@ contract AaveBasicStrategy is Ownable {
 
     // Ajouter des events ?
 
-    constructor(address _tokenAddress, address _aaveAddress) {
+    constructor(
+        address _tokenAddress,
+        address _tokenToBorrow,
+        address _aaveAddress
+    ) {
         tokenAddress = _tokenAddress;
+        tokenToBorrow = _tokenToBorrow;
         aaveAddress = _aaveAddress;
         aave = IPool(_aaveAddress);
         // Donner l'ownership au contrat factory et vérifier qu'il l'a bien avant d'add une stratégie ?
     }
 
-    function test(address asset, uint256 amount) public {
-        ERC20 token = ERC20(asset);
+    function supplyOnAavePool(uint256 amount) internal {
+        ERC20 token = ERC20(tokenAddress);
         token.approve(aaveAddress, amount);
 
-        aave.supply(asset, amount, address(this), 0);
+        aave.supply(tokenAddress, amount, address(this), 0);
     }
 
-    function test2(address asset, uint256 amount) public {
-        aave.withdraw(asset, amount, address(this));
+    function withdrawFromAavePool(uint256 amount) internal {
+        aave.withdraw(tokenAddress, amount, address(this));
     }
 
-    function strategy() internal {
-        strategyTest = "Success";
+    function borrowOnAave(uint256 amountToBorrow, uint256 interestRateMode) internal {
+        aave.borrow(tokenToBorrow, amountToBorrow, interestRateMode, 0, address(this));
+    }
+
+    function strategy(uint256 amount) internal {
+        supplyOnAavePool(amount);
+
+        uint256 amountToBorrow = (amount * 3) / 4;
+        borrowOnAave(amountToBorrow, 2); // InterestRateMode = 2 -> Variable (1 -> Stable)
     } // Where the strategy structure is set.
 
     function enterStrategy(
@@ -52,7 +65,7 @@ contract AaveBasicStrategy is Ownable {
         Erc20Token.transferFrom(msg.sender, address(this), amount);
         s_userBalances[userAddress] += amount;
 
-        strategy();
+        strategy(amount);
     } // Factory contract deposit user funds here.
 
     function exitStrategy(address userAddress, uint256 amount) public {
@@ -68,6 +81,8 @@ contract AaveBasicStrategy is Ownable {
     } // Factory contract tell strategy to recolt yield here.
 
     function setAaveAddress(address _aaveAddress) public onlyOwner {
+        // Si l'owner est la factory, faire une fonction dedans qui permet de modifier les adresses
+        // des tokens dans les stratégies si nécessaire.
         require(_aaveAddress != address(0), "This address is not available");
         aaveAddress = _aaveAddress;
         aave = IPool(_aaveAddress);
@@ -86,6 +101,17 @@ contract AaveBasicStrategy is Ownable {
 
     function getTokenToDeposit() public view returns (address) {
         return tokenAddress;
+    } // Return token address to deposit on strategy.
+
+    function setTokenToBorrow(address newTokenAddress) public onlyOwner {
+        // Si l'owner est la factory, faire une fonction dedans qui permet de modifier les adresses
+        // des tokens dans les stratégies si nécessaire.
+        require(newTokenAddress != address(0), "This address is not available");
+        tokenToBorrow = newTokenAddress;
+    }
+
+    function getTokenToBorrow() public view returns (address) {
+        return tokenToBorrow;
     } // Return token address to deposit on strategy.
 
     function getUserBalance(address userAddress) public view returns (uint256) {
