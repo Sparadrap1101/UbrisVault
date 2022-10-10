@@ -12,7 +12,14 @@ module.exports = async function ({ getNamedAccounts, deployments }) {
     log: true,
     waitConfirmations: 6,
   });*/
-  const args = ["0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", "0x794a61358d6845594f94dc1db02a252b5b4814ad"];
+
+  const args = [
+    "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+    "0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063",
+    "0x794a61358d6845594f94dc1db02a252b5b4814ad",
+    "0xDEF171Fe48CF0115B1d80b88dc8eAB59176FEe57",
+  ];
+  // USDC, DAI, AAVE, PARASWAP
 
   const aaveBasicStrategy = await deploy("AaveBasicStrategy", {
     from: deployer,
@@ -23,9 +30,9 @@ module.exports = async function ({ getNamedAccounts, deployments }) {
 
   const developmentChains = ["hardhat", "localhost"];
 
-  if (!developmentChains.includes(network.name) && process.env.ETHERSCAN_API_KEY) {
+  if (!developmentChains.includes(network.name) && process.env.POLYGONSCAN_API_KEY) {
     log("Verifying...");
-    await verify(ubrisvault.address, args);
+    await verify(aaveBasicStrategy.address, args);
   }
   log("--------------------------------");
 };
