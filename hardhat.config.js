@@ -11,6 +11,7 @@ const MUMBAI_RPC_URL = process.env.MUMBAI_RPC_URL || "https://eth-mumbai.alchemy
 const POLYGON_RPC_URL = process.env.POLYGON_RPC_URL || "https://eth-polygon.alchemyapi";
 const PRIVATE_KEY = process.env.PRIVATE_KEY || "0x";
 const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY || "Your etherscan API key";
+const POLYGONSCAN_API_KEY = process.env.POLYGONSCAN_API_KEY || "Your polygonscan API key";
 const COINMARKETCAP_API_KEY = process.env.COINMARKETCAP_API_KEY || "key";
 
 /** @type import('hardhat/config').HardhatUserConfig */
@@ -38,6 +39,12 @@ module.exports = {
       blockConfirmations: 6,
       url: POLYGON_RPC_URL,
       accounts: [PRIVATE_KEY],
+    },
+  },
+
+  etherscan: {
+    apiKey: {
+      polygon: POLYGONSCAN_API_KEY,
     },
   },
 
