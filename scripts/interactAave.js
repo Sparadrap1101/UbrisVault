@@ -3,12 +3,13 @@ const { ethers, run, network } = require("hardhat");
 async function main() {
   console.log("Starting...");
   const accounts = await ethers.getSigners();
-  const contractAddress = "0x7606c839B24b5A894b9602F3a506f69E2BE3A347";
+  const contractAddress = "0xA9BDf7764DeeED5F75dCe4F986F9349Eb20C6469";
   const assetAddress = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
   const myContract = await hre.ethers.getContractAt("AaveBasicStrategy", contractAddress);
   const myToken = await hre.ethers.getContractAt("ERC20", assetAddress);
   const amount = 100;
 
+  /*
   const hoho = await myToken.approve(contractAddress, amount);
   await hoho.wait(1);
 
@@ -40,6 +41,25 @@ async function main() {
   console.log(`User balance: ${userBalance}`);
   console.log(`User balance deposited on contract: ${userDepositBalance}`);
   console.log(`Contract balance: ${contractBalance}`);
+  */
+
+  // const hihi = await myToken.transfer(contractAddress, amount);
+  // await hihi.wait(1);
+
+  let userBalance = await myToken.balanceOf(contractAddress);
+  console.log(`User balance: ${userBalance}`);
+
+  console.log("a");
+  const humhum = await myContract.test(amount);
+  console.log("b");
+  await humhum.wait(1);
+  console.log("c");
+
+  userBalance = await myToken.balanceOf(contractAddress);
+  console.log(`User balance: ${userBalance}`);
+
+  const test = await myContract.strategyTest();
+  console.log(test);
 }
 
 main()
