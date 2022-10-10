@@ -5,12 +5,16 @@ pragma solidity ^0.8.7;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "../interfaces/IPoolAave.sol";
+import "../interfaces/IParaswap.sol";
+import "../interfaces/Utils.sol";
 
 contract AaveBasicStrategy is Ownable {
     address private tokenAddress;
     address private tokenToBorrow;
     address private aaveAddress;
+    address private paraswapAddress;
     IPool aave;
+    IParaswap paraswap;
 
     // Plus judicieux de mettre un % qu'un amount fixe pour la balance car elle sera amené à pas mal bouger
     // Peut être un ERC20 comme font Yearn etc avec les yToken (check comment ils font exactement).
@@ -23,13 +27,47 @@ contract AaveBasicStrategy is Ownable {
     constructor(
         address _tokenAddress,
         address _tokenToBorrow,
-        address _aaveAddress
+        address _aaveAddress,
+        address _paraswapAddress
     ) {
         tokenAddress = _tokenAddress;
         tokenToBorrow = _tokenToBorrow;
         aaveAddress = _aaveAddress;
         aave = IPool(_aaveAddress);
+        paraswapAddress = _paraswapAddress;
+        paraswap = IParaswap(_paraswapAddress);
         // Donner l'ownership au contrat factory et vérifier qu'il l'a bien avant d'add une stratégie ?
+    }
+
+    function test(uint256 amount) public {
+        strategyTest = "1";
+        ERC20 token = ERC20(tokenAddress);
+        strategyTest = "2";
+        token.approve(paraswapAddress, amount);
+        strategyTest = "3";
+
+        Utils.SimpleData memory dataForSwap;
+        strategyTest = "4";
+        // Attention car si le name est le même pour plusieurs stratégies et ça peut poser prbl pour les events
+        dataForSwap.fromToken = tokenAddress;
+        dataForSwap.toToken = tokenToBorrow;
+        dataForSwap.fromAmount = amount;
+        dataForSwap.toAmount = amount - 10;
+        dataForSwap.expectedAmount = amount - 1;
+        dataForSwap.callees;
+        dataForSwap.exchangeData;
+        dataForSwap.startIndexes;
+        dataForSwap.values;
+        dataForSwap.beneficiary;
+        dataForSwap.partner;
+        dataForSwap.feePercent;
+        dataForSwap.permit;
+        dataForSwap.deadline = 25;
+        dataForSwap.uuid;
+        strategyTest = "5";
+
+        paraswap.simpleSwap(dataForSwap);
+        strategyTest = "6";
     }
 
     function supplyOnAavePool(uint256 amount) internal {
@@ -90,6 +128,18 @@ contract AaveBasicStrategy is Ownable {
 
     function getAaveAddress() public view returns (address) {
         return aaveAddress;
+    }
+
+    function setParaswapAddress(address _paraswapAddress) public onlyOwner {
+        // Si l'owner est la factory, faire une fonction dedans qui permet de modifier les adresses
+        // des tokens dans les stratégies si nécessaire.
+        require(_paraswapAddress != address(0), "This address is not available");
+        paraswapAddress = _paraswapAddress;
+        paraswap = IParaswap(_paraswapAddress);
+    }
+
+    function getParaswapAddress() public view returns (address) {
+        return paraswapAddress;
     }
 
     function setTokenToDeposit(address newTokenAddress) public onlyOwner {
