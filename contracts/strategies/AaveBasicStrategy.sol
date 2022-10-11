@@ -5,16 +5,15 @@ pragma solidity ^0.8.7;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "../interfaces/IPoolAave.sol";
-import "../interfaces/IParaswap.sol";
-import "../interfaces/Utils.sol";
+import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 
 contract AaveBasicStrategy is Ownable {
     address private tokenAddress;
     address private tokenToBorrow;
     address private aaveAddress;
-    address private paraswapAddress;
+    address private uniswapAddress;
     IPool aave;
-    IParaswap paraswap;
+    ISwapRouter uniswap;
 
     // Plus judicieux de mettre un % qu'un amount fixe pour la balance car elle sera amené à pas mal bouger
     // Peut être un ERC20 comme font Yearn etc avec les yToken (check comment ils font exactement).
@@ -28,14 +27,14 @@ contract AaveBasicStrategy is Ownable {
         address _tokenAddress,
         address _tokenToBorrow,
         address _aaveAddress,
-        address _paraswapAddress
+        address _uniswapAddress
     ) {
         tokenAddress = _tokenAddress;
         tokenToBorrow = _tokenToBorrow;
         aaveAddress = _aaveAddress;
         aave = IPool(_aaveAddress);
-        paraswapAddress = _paraswapAddress;
-        paraswap = IParaswap(_paraswapAddress);
+        uniswapAddress = _uniswapAddress;
+        uniswap = ISwapRouter(_uniswapAddress);
         // Donner l'ownership au contrat factory et vérifier qu'il l'a bien avant d'add une stratégie ?
     }
 
@@ -43,31 +42,23 @@ contract AaveBasicStrategy is Ownable {
         strategyTest = "1";
         ERC20 token = ERC20(tokenAddress);
         strategyTest = "2";
-        token.approve(paraswapAddress, amount);
+        token.approve(uniswapAddress, amount);
         strategyTest = "3";
 
-        Utils.SimpleData memory dataForSwap;
+        ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
+            tokenIn: tokenAddress,
+            tokenOut: tokenToBorrow,
+            fee: 3000,
+            recipient: msg.sender,
+            deadline: block.timestamp,
+            amountIn: amount,
+            amountOutMinimum: 0,
+            sqrtPriceLimitX96: 0
+        });
         strategyTest = "4";
-        // Attention car si le name est le même pour plusieurs stratégies et ça peut poser prbl pour les events
-        dataForSwap.fromToken = tokenAddress;
-        dataForSwap.toToken = tokenToBorrow;
-        dataForSwap.fromAmount = amount;
-        dataForSwap.toAmount = amount - 10;
-        dataForSwap.expectedAmount = amount - 1;
-        dataForSwap.callees;
-        dataForSwap.exchangeData;
-        dataForSwap.startIndexes;
-        dataForSwap.values;
-        dataForSwap.beneficiary;
-        dataForSwap.partner;
-        dataForSwap.feePercent;
-        dataForSwap.permit;
-        dataForSwap.deadline = 25;
-        dataForSwap.uuid;
-        strategyTest = "5";
 
-        paraswap.simpleSwap(dataForSwap);
-        strategyTest = "6";
+        uniswap.exactInputSingle(params);
+        strategyTest = "5";
     }
 
     function supplyOnAavePool(uint256 amount) internal {
@@ -103,7 +94,7 @@ contract AaveBasicStrategy is Ownable {
         Erc20Token.transferFrom(msg.sender, address(this), amount);
         s_userBalances[userAddress] += amount;
 
-        strategy(amount);
+        // strategy(amount);
     } // Factory contract deposit user funds here.
 
     function exitStrategy(address userAddress, uint256 amount) public {
@@ -130,16 +121,16 @@ contract AaveBasicStrategy is Ownable {
         return aaveAddress;
     }
 
-    function setParaswapAddress(address _paraswapAddress) public onlyOwner {
+    function setUniswapAddress(address _uniswapAddress) public onlyOwner {
         // Si l'owner est la factory, faire une fonction dedans qui permet de modifier les adresses
         // des tokens dans les stratégies si nécessaire.
-        require(_paraswapAddress != address(0), "This address is not available");
-        paraswapAddress = _paraswapAddress;
-        paraswap = IParaswap(_paraswapAddress);
+        require(_uniswapAddress != address(0), "This address is not available");
+        uniswapAddress = _uniswapAddress;
+        uniswap = ISwapRouter(_uniswapAddress);
     }
 
-    function getParaswapAddress() public view returns (address) {
-        return paraswapAddress;
+    function getUniswapAddress() public view returns (address) {
+        return uniswapAddress;
     }
 
     function setTokenToDeposit(address newTokenAddress) public onlyOwner {
