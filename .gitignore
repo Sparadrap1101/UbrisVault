@@ -6,3 +6,4 @@ yarn.lock
 artifacts
 cache
 gas-report.txt
+.DS_Store
