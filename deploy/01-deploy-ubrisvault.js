@@ -13,13 +13,15 @@ module.exports = async function ({ getNamedAccounts, deployments }) {
     waitConfirmations: 6,
   });*/
 
-  const args = [
-    "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
-    "0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063",
-    "0x794a61358d6845594f94dc1db02a252b5b4814ad",
-    "0xDEF171Fe48CF0115B1d80b88dc8eAB59176FEe57",
-  ];
-  // USDC, DAI, AAVE, PARASWAP
+  const USDC_POLYGON = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
+  const DAI_POLYGON = "0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063";
+  const WETH_MUMBAI = "0xA6FA4fB5f76172d178d61B04b0ecd319C5d1C0aa";
+  const WMATIC_MUMBAI = "0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889";
+  const AAVE_POLYGON = "0x794a61358d6845594f94dc1db02a252b5b4814ad";
+  const PARASWAP_POLYGON = "0xDEF171Fe48CF0115B1d80b88dc8eAB59176FEe57";
+  const UNISWAP_ALL = "0xE592427A0AEce92De3Edee1F18E0157C05861564";
+
+  const args = [WETH_MUMBAI, WMATIC_MUMBAI, AAVE_POLYGON, UNISWAP_ALL];
 
   const aaveBasicStrategy = await deploy("AaveBasicStrategy", {
     from: deployer,
