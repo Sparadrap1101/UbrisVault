@@ -19,7 +19,7 @@ contract AaveBasicStrategy is Ownable {
     // Peut être un ERC20 comme font Yearn etc avec les yToken (check comment ils font exactement).
     mapping(address => uint256) private s_userBalances;
 
-    string public strategyTest = "Not called yet.";
+    uint256 public strategyTest = 0;
 
     // Ajouter des events ?
 
@@ -38,55 +38,125 @@ contract AaveBasicStrategy is Ownable {
         // Donner l'ownership au contrat factory et vérifier qu'il l'a bien avant d'add une stratégie ?
     }
 
-    function test(uint256 amount) public {
-        strategyTest = "1";
-        ERC20 token = ERC20(tokenAddress);
-        strategyTest = "2";
+    /// Internal functions ///
+
+    function supplyOnAavePool(address tokenSupply, uint256 amount) internal {
+        ERC20 token = ERC20(tokenSupply);
+        token.approve(aaveAddress, amount);
+
+        aave.supply(tokenSupply, amount, address(this), 0);
+    }
+
+    function withdrawFromAavePool(address tokenWithdraw, uint256 amount) internal {
+        aave.withdraw(tokenWithdraw, amount, address(this));
+    } // Vérifier qu'on passe pas le Health Factor sous 1 en faisant withdraw
+
+    function borrowOnAave(
+        address tokenBorrow,
+        uint256 amountToBorrow,
+        uint256 interestRateMode
+    ) internal {
+        aave.borrow(tokenBorrow, amountToBorrow, interestRateMode, 0, address(this));
+    }
+
+    function repayOnAave(
+        address tokenRepay,
+        uint256 amountToRepay,
+        uint256 interestRateMode
+    ) internal {
+        ERC20 token = ERC20(tokenRepay);
+        token.approve(aaveAddress, amountToRepay); // Plus tard p'tete approve à l'infini et check juste s'il reste de l'allowance.
+
+        aave.repay(tokenRepay, amountToRepay, interestRateMode, address(this));
+    }
+
+    function repayWithATokenOnAave(
+        address tokenRepay,
+        uint256 amountToRepay,
+        uint256 interestRateMode
+    ) internal {
+        aave.repayWithATokens(tokenRepay, amountToRepay, interestRateMode);
+    }
+
+    function swapOnUniswap(
+        address tokenToSwap,
+        address tokenToGet,
+        uint256 amount,
+        uint24 fees
+    ) public returns (uint256) {
+        ERC20 token = ERC20(tokenToSwap);
         token.approve(uniswapAddress, amount);
-        strategyTest = "3";
 
         ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
-            tokenIn: tokenAddress,
-            tokenOut: tokenToBorrow,
-            fee: 3000,
-            recipient: msg.sender,
+            tokenIn: tokenToSwap,
+            tokenOut: tokenToGet,
+            fee: fees,
+            recipient: address(this),
             deadline: block.timestamp,
             amountIn: amount,
             amountOutMinimum: 0,
             sqrtPriceLimitX96: 0
         });
-        strategyTest = "4";
 
-        uniswap.exactInputSingle(params);
-        strategyTest = "5";
+        strategyTest = (amount * 9) / 10;
+
+        uint256 amountOut = uniswap.exactInputSingle(params);
+
+        return amountOut;
     }
 
-    function supplyOnAavePool(uint256 amount) internal {
-        ERC20 token = ERC20(tokenAddress);
-        token.approve(aaveAddress, amount);
+    function withdraw(address _tokenAddress) public {
+        ERC20 token = ERC20(_tokenAddress);
 
-        aave.supply(tokenAddress, amount, address(this), 0);
-    }
-
-    function withdrawFromAavePool(uint256 amount) internal {
-        aave.withdraw(tokenAddress, amount, address(this));
-    }
-
-    function borrowOnAave(uint256 amountToBorrow, uint256 interestRateMode) internal {
-        aave.borrow(tokenToBorrow, amountToBorrow, interestRateMode, 0, address(this));
+        token.transfer(msg.sender, token.balanceOf(address(this)));
     }
 
     function strategy(uint256 amount) internal {
-        supplyOnAavePool(amount);
+        supplyOnAavePool(tokenAddress, amount);
 
         uint256 amountToBorrow = (amount * 3) / 4;
-        borrowOnAave(amountToBorrow, 2); // InterestRateMode = 2 -> Variable (1 -> Stable)
-    } // Where the strategy structure is set.
+        borrowOnAave(tokenToBorrow, amountToBorrow, 2); // InterestRateMode = 2 -> Variable (1 -> Stable)
+
+        // Vérifier pcq j'ai pas forcément besoin de swap au final, surtout pour des stablecoins. on peut laisser le choix à la limite
+        uint256 amountToSwap = (amountToBorrow * 4) / 5;
+        uint256 amountOut = swapOnUniswap(tokenToBorrow, tokenAddress, amountToSwap, 3000); // Fees : 3000 = 0.3%
+
+        supplyOnAavePool(tokenAddress, amountOut);
+    } // Where the strategy structure is set. (Full path with some gas cost).
+
+    function strategyGasLess(uint256 amount) internal {
+        supplyOnAavePool(tokenAddress, amount);
+
+        uint256 amountToBorrow = (amount * 3) / 4;
+        borrowOnAave(tokenAddress, amountToBorrow, 2); // InterestRateMode = 2 -> Variable (1 -> Stable)
+
+        supplyOnAavePool(tokenAddress, amountToBorrow);
+    } // Strategy with same asset borrow as supplied (to avoid swaps, fees and use repayWithAToken())
+
+    function exitAave(uint256 amount) internal {
+        // Vérifier les montant avec des require (si le mec peut, si ça nique pas le health factor etc)
+        withdrawFromAavePool(tokenAddress, amount);
+
+        uint256 amountOut = swapOnUniswap(tokenAddress, tokenToBorrow, amount, 3000); // Fees : 3000 = 0.3%
+
+        repayOnAave(tokenToBorrow, amountOut, 2);
+
+        withdrawFromAavePool(tokenAddress, amountOut);
+    }
+
+    function exitAaveGasLess(uint256 amount) internal {
+        repayWithATokenOnAave(tokenAddress, amount, 2);
+
+        withdrawFromAavePool(tokenAddress, amount);
+    }
+
+    /// Public functions ///
 
     function enterStrategy(
         address _tokenAddress,
         address userAddress,
-        uint256 amount
+        uint256 amount,
+        bool gasLessStrategy
     ) public payable {
         require(_tokenAddress == tokenAddress, "This token is not available in this strategy.");
         require(tokenAddress != address(0), "This address is not valid for ERC20 token.");
@@ -94,20 +164,38 @@ contract AaveBasicStrategy is Ownable {
         Erc20Token.transferFrom(msg.sender, address(this), amount);
         s_userBalances[userAddress] += amount;
 
-        // strategy(amount);
+        if (gasLessStrategy == true) {
+            strategyGasLess(amount);
+        } else {
+            strategy(amount);
+        }
     } // Factory contract deposit user funds here.
 
-    function exitStrategy(address userAddress, uint256 amount) public {
+    function exitStrategy(
+        address userAddress,
+        uint256 amount,
+        bool gasLessStrategy
+    ) public {
         require(s_userBalances[userAddress] >= amount, "You can't withdraw more than your wallet funds.");
         require(tokenAddress != address(0), "This address is not valid for ERC20 token.");
         ERC20 Erc20Token = ERC20(tokenAddress);
         Erc20Token.transfer(msg.sender, amount);
         s_userBalances[userAddress] -= amount;
+
+        if (gasLessStrategy == true) {
+            exitAaveGasLess(amount);
+        } else {
+            exitAave(amount);
+        }
+
+        // Vérifier les balances blabla et transferer sur le compte du gars dans factory.
     } // Factory contract withdraw user funds here.
 
     function recolt() public {
-        strategyTest = "Recolted.";
+        strategyTest = 1;
     } // Factory contract tell strategy to recolt yield here.
+
+    /// Set & Get functions ///
 
     function setAaveAddress(address _aaveAddress) public onlyOwner {
         // Si l'owner est la factory, faire une fonction dedans qui permet de modifier les adresses
@@ -158,4 +246,12 @@ contract AaveBasicStrategy is Ownable {
     function getUserBalance(address userAddress) public view returns (uint256) {
         return s_userBalances[userAddress];
     } // Return user balance in the strategy.
+
+    function getStrategyBalance() public view returns (uint256) {
+        return 0;
+    }
+
+    function verifyHealthFactor() public view returns (uint256) {
+        return 0;
+    }
 }
