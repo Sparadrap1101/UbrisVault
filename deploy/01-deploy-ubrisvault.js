@@ -21,7 +21,7 @@ module.exports = async function ({ getNamedAccounts, deployments }) {
   const PARASWAP_POLYGON = "0xDEF171Fe48CF0115B1d80b88dc8eAB59176FEe57";
   const UNISWAP_ALL = "0xE592427A0AEce92De3Edee1F18E0157C05861564";
 
-  const args = [WETH_MUMBAI, WMATIC_MUMBAI, AAVE_POLYGON, UNISWAP_ALL];
+  const args = [USDC_POLYGON, DAI_POLYGON, AAVE_POLYGON, UNISWAP_ALL];
 
   const aaveBasicStrategy = await deploy("AaveBasicStrategy", {
     from: deployer,
