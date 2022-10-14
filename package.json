@@ -17,6 +17,8 @@
     "solidity-coverage": "^0.7.21"
   },
   "dependencies": {
+    "@aave/core-v3": "^1.16.2",
+    "@aave/periphery-v3": "^1.19.2",
     "@openzeppelin/contracts": "^4.7.2",
     "@uniswap/v3-periphery": "^1.4.2"
   }
