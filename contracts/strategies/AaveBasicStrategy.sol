@@ -20,6 +20,7 @@ contract AaveBasicStrategy is Ownable {
     address private aaveRewardsAddress;
     address private uniswapAddress;
     address private uniswapQuoterAddress;
+
     IPool aave;
     ISwapRouter uniswap;
     IQuoter uniswapQuoter;
@@ -28,8 +29,6 @@ contract AaveBasicStrategy is Ownable {
     uint256 private immutable initialTokenPrice;
     uint256 private totalBalance;
     mapping(address => uint256) private userBalances;
-
-    uint256 public strategyTest = 0;
 
     // Ajouter des events ?
 
@@ -51,19 +50,27 @@ contract AaveBasicStrategy is Ownable {
         uniswap = ISwapRouter(_uniswapAddress);
         uniswapQuoterAddress = _uniswapQuoterAddress;
         uniswapQuoter = IQuoter(_uniswapQuoterAddress);
+        uint256 initialPrice;
 
         if (tokenAddress == tokenToBorrow) {
             DataTypes.ReserveData memory outputs = aave.getReserveData(tokenAddress);
             aTokenAddress = outputs.aTokenAddress;
+            vTokenAddress = outputs.variableDebtTokenAddress;
+            initialPrice = 1;
         } else {
             DataTypes.ReserveData memory outputs1 = aave.getReserveData(tokenAddress);
             aTokenAddress = outputs1.aTokenAddress;
 
             DataTypes.ReserveData memory outputs2 = aave.getReserveData(tokenToBorrow);
             vTokenAddress = outputs2.variableDebtTokenAddress;
+
+            // P'tete pas mettre le 3000 de fees en dur mais soit le mettre dans le constructeur, soit voir si y'a pas une fonction Uniswap qui
+            // permet de le connaitre a partir des deux tokens à swap.
+            initialPrice = uniswapQuoter.quoteExactInputSingle(tokenAddress, tokenToBorrow, 3000, 1, 0);
         }
 
-        initialTokenPrice = uniswapQuoter.quoteExactInputSingle(tokenAddress, tokenToBorrow, 3000, 1, 0);
+        initialTokenPrice = initialPrice;
+
         // Donner l'ownership au contrat factory et vérifier qu'il l'a bien avant d'add une stratégie ?
     }
 
@@ -139,7 +146,7 @@ contract AaveBasicStrategy is Ownable {
                 recipient: address(this),
                 deadline: block.timestamp,
                 amountOut: amount,
-                amountInMaximum: amount * 2,
+                amountInMaximum: amount * 2, // P'tete mettre un uint(max) ou qqc comme ça si y'a gros gap entre les deux cours ?
                 sqrtPriceLimitX96: 0
             });
 
@@ -160,10 +167,14 @@ contract AaveBasicStrategy is Ownable {
     ) internal returns (uint256) {
         uint256 amountOutput;
 
-        if (isInput) {
-            amountOutput = uniswapQuoter.quoteExactInputSingle(tokenToSwap, tokenToGet, fees, amount, 0);
+        if (tokenAddress == tokenToBorrow) {
+            amountOutput = 1;
         } else {
-            amountOutput = uniswapQuoter.quoteExactOutputSingle(tokenToSwap, tokenToGet, fees, amount, 0);
+            if (isInput) {
+                amountOutput = uniswapQuoter.quoteExactInputSingle(tokenToSwap, tokenToGet, fees, amount, 0);
+            } else {
+                amountOutput = uniswapQuoter.quoteExactOutputSingle(tokenToSwap, tokenToGet, fees, amount, 0);
+            }
         }
 
         return amountOutput;
@@ -178,9 +189,10 @@ contract AaveBasicStrategy is Ownable {
     function _strategy(uint256 amount) internal {
         _supplyOnAavePool(tokenAddress, amount);
 
-        uint256 amountToBorrow = (amount * 3) / 4;
-        _borrowOnAave(tokenToBorrow, amountToBorrow, 2); // InterestRateMode = 2 -> Variable (1 -> Stable)
+        uint256 amountToBorrow = (amount * 3) / 4; // C'est de la merde ça, faut voir le rapport entre les deux token avec QuoteUniswap ou Chainlink
+        _borrowOnAave(tokenToBorrow, amountToBorrow, 2); // InterestRateMode : 2 -> Variable (1 -> Stable)
 
+        // Pareil, peut être faire une variable fee globale à partir du constructeur ou uniswap.
         uint256 amountOut = _swapOnUniswap(tokenToBorrow, tokenAddress, amountToBorrow, 3000, true); // Fees : 3000 = 0.3%
 
         _supplyOnAavePool(tokenAddress, amountOut);
@@ -221,6 +233,7 @@ contract AaveBasicStrategy is Ownable {
     ) public payable {
         require(_tokenAddress == tokenAddress, "This token is not available in this strategy.");
         require(tokenAddress != address(0), "This address is not valid for ERC20 token.");
+        // Vérifier l'Allowance et si j'ai bien les thunes
 
         // Use Chainlink prices instead ?
         uint256 newTokenPrice = _quoteWithUniswap(tokenAddress, tokenToBorrow, 1, 3000, true);
@@ -361,7 +374,6 @@ contract AaveBasicStrategy is Ownable {
             userCurrentBalance = 0;
         } else {
             uint256 userRatio = userBalances[userAddress] / totalBalance;
-
             uint256 totalBalanceStrategy = getTotalStrategyBalance();
 
             userCurrentBalance = totalBalanceStrategy * userRatio;
@@ -398,6 +410,7 @@ contract AaveBasicStrategy is Ownable {
         uint256 balance;
         uint256 aBalance;
         uint256 vBalance;
+        // P'tete problème dans le calcul de la balance si certains tokens de dette sont gardé comme tels et pas re supply en aToken ?
 
         if (tokenAddress == tokenToBorrow) {
             // Again potentielle faille si on change les addresses après coup ?
@@ -422,9 +435,44 @@ contract AaveBasicStrategy is Ownable {
         return balance;
     } // Strategy pure balance on Aave (full aToken supply balance - vToken debt balance = real balance on Aave)
 
-    function getHealthFactor() public view returns (uint256) {
-        (, , , , , uint256 health_factor) = aave.getUserAccountData(address(this));
+    uint256 public calculatedHealthFactor;
+    uint256 public healthFactor;
+    uint256 public _totalCollateralBase;
+    uint256 public _totalDebtBase;
+    uint256 public _availableBorrowsBase;
+    uint256 public _currentLiquidationThreshold;
+    uint256 public futureHealthFactor;
 
-        return health_factor;
+    function getHealthFactor(uint256 addToBorrow)
+        public
+        returns (
+            uint256,
+            uint256,
+            uint256
+        )
+    {
+        // Mettre un require si rien n'est borrow ?
+        (
+            uint256 totalCollateralBase,
+            uint256 totalDebtBase,
+            uint256 availableBorrowsBase,
+            uint256 currentLiquidationThreshold,
+            ,
+            uint256 health_factor
+        ) = aave.getUserAccountData(address(this));
+
+        healthFactor = health_factor;
+        calculatedHealthFactor = (totalCollateralBase * currentLiquidationThreshold) / totalDebtBase;
+        futureHealthFactor = 0;
+        _totalCollateralBase = totalCollateralBase;
+        _totalDebtBase = totalDebtBase;
+        _availableBorrowsBase = availableBorrowsBase;
+        _currentLiquidationThreshold = currentLiquidationThreshold;
+
+        if (calculatedHealthFactor == health_factor) {
+            futureHealthFactor = (totalCollateralBase * currentLiquidationThreshold) / (totalDebtBase + addToBorrow);
+        }
+
+        return (health_factor, availableBorrowsBase, futureHealthFactor);
     } // Health Factor on Aave
 }
