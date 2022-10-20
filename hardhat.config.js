@@ -7,6 +7,7 @@ require("hardhat-contract-sizer");
 require("dotenv").config();
 
 const RINKEBY_RPC_URL = process.env.RINKEBY_RPC_URL || "https://eth-rinkeby.alchemyapi";
+const GOERLI_RPC_URL = process.env.GOERLI_RPC_URL || "https://eth-rinkeby.alchemyapi";
 const MUMBAI_RPC_URL = process.env.MUMBAI_RPC_URL || "https://eth-mumbai.alchemyapi";
 const POLYGON_RPC_URL = process.env.POLYGON_RPC_URL || "https://eth-polygon.alchemyapi";
 const PRIVATE_KEY = process.env.PRIVATE_KEY || "0x";
@@ -17,6 +18,7 @@ const COINMARKETCAP_API_KEY = process.env.COINMARKETCAP_API_KEY || "key";
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
   defaultNetwork: "hardhat",
+  allowUnlimitedContractSize: true,
   networks: {
     hardhat: {
       chainId: 31337,
@@ -26,6 +28,12 @@ module.exports = {
       chainId: 4,
       blockConfirmations: 6,
       url: RINKEBY_RPC_URL,
+      accounts: [PRIVATE_KEY],
+    },
+    goerli: {
+      chainId: 5,
+      blockConfirmations: 6,
+      url: GOERLI_RPC_URL,
       accounts: [PRIVATE_KEY],
     },
     mumbai: {
@@ -46,6 +54,7 @@ module.exports = {
     apiKey: {
       polygon: POLYGONSCAN_API_KEY,
       polygonMumbai: POLYGONSCAN_API_KEY,
+      goerli: ETHERSCAN_API_KEY,
     },
   },
 
