@@ -31,7 +31,17 @@ module.exports = async function ({ getNamedAccounts, deployments }) {
   const UNISWAP_QUOTER_ALL = "0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6";
   const CHAINLINK_GOERLI_ETHUSD = "0xD4a33860578De61DBAbDc8BFdb98FD742fA7028e";
 
-  const args = [USDC_GOERLI_AAVE, USDC_GOERLI_AAVE, AAVE_GOERLI, AAVE_REWARDS_GOERLI, UNISWAP_ALL, UNISWAP_QUOTER_ALL];
+  const args = [
+    USDC_GOERLI_AAVE,
+    USDC_GOERLI_AAVE,
+    AAVE_GOERLI,
+    AAVE_REWARDS_GOERLI,
+    UNISWAP_ALL,
+    UNISWAP_QUOTER_ALL,
+    3000,
+    CHAINLINK_GOERLI_ETHUSD,
+    CHAINLINK_GOERLI_ETHUSD,
+  ];
 
   const aaveBasicStrategy = await deploy("AaveBasicStrategy", {
     from: deployer,
