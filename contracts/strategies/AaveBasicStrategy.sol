@@ -25,7 +25,7 @@ contract AaveBasicStrategy is Ownable {
     uint24 private uniswapFees;
     address private chainlinkAddressTokenA;
     address private chainlinkAddressTokenB;
-    bool private isChainlinkWorking; // + Faire une fonction "chainlinkWorkingBoolSwap() onlyOwner : true <-> false" en bas au cas où.
+    bool private isChainlinkWorking;
 
     IPool private aave;
     ISwapRouter private uniswap;
@@ -70,12 +70,20 @@ contract AaveBasicStrategy is Ownable {
         uniswapQuoter = IQuoter(_uniswapQuoterAddress);
         // Vérifier si je peux pas choper les fees de la pool direct avec un call sur uniswap.
         uniswapFees = _uniswapFees;
-        // Faire un try/catch pour si ces tokens n'existent pas sur Chainlink. P'tete faire une variable globale
-        // aussi pour utiliser uniswapQuoter à la place pour chopper le prix dans les fonctions où c'est nécessaire.
         chainlinkAddressTokenA = _chainlinkAddressTokenA;
         chainlinkTokenA = AggregatorV3Interface(_chainlinkAddressTokenA);
         chainlinkAddressTokenB = _chainlinkAddressTokenB;
         chainlinkTokenB = AggregatorV3Interface(_chainlinkAddressTokenB);
+
+        try chainlinkTokenA.latestRoundData() {
+            try chainlinkTokenB.latestRoundData() {
+                isChainlinkWorking = true;
+            } catch {
+                isChainlinkWorking = false;
+            }
+        } catch {
+            isChainlinkWorking = false;
+        }
 
         uint256 initialPrice;
 
@@ -92,12 +100,11 @@ contract AaveBasicStrategy is Ownable {
             DataTypes.ReserveData memory outputs2 = aave.getReserveData(tokenToBorrow);
             vTokenAddress = outputs2.variableDebtTokenAddress;
 
-            // P'tete pas mettre le 3000 de fees en dur mais soit le mettre dans le constructeur, soit voir si y'a pas une fonction Uniswap qui
-            // permet de le connaitre a partir des deux tokens à swap.
-            // Utiliser Chainlink mais utiliser aussi uniswapQuoter si ça existe pas sur chainlink.
-            // Appeler les fonctions interne du contrat direct pour chopper l'initial price, normalement ça marche.
-            initialPrice = _chainlinkPriceFeed(true);
-            // initialPrice = _quoteWithUniswap(tokenAddress, tokenToBorrow, 1, true);
+            if (isChainlinkWorking) {
+                initialPrice = _chainlinkPriceFeed(true);
+            } else {
+                initialPrice = _quoteWithUniswap(tokenAddress, tokenToBorrow, 1, true);
+            }
         }
 
         initialTokenPrice = initialPrice;
@@ -149,7 +156,6 @@ contract AaveBasicStrategy is Ownable {
         address tokenToSwap,
         address tokenToGet,
         uint256 amount,
-        uint24 fees,
         bool isInput
     ) public returns (uint256) {
         uint256 amountOut;
@@ -160,7 +166,7 @@ contract AaveBasicStrategy is Ownable {
             ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
                 tokenIn: tokenToSwap,
                 tokenOut: tokenToGet,
-                fee: fees,
+                fee: uniswapFees,
                 recipient: address(this),
                 deadline: block.timestamp,
                 amountIn: amount,
@@ -173,7 +179,7 @@ contract AaveBasicStrategy is Ownable {
             ISwapRouter.ExactOutputSingleParams memory params = ISwapRouter.ExactOutputSingleParams({
                 tokenIn: tokenToSwap,
                 tokenOut: tokenToGet,
-                fee: fees,
+                fee: uniswapFees,
                 recipient: address(this),
                 deadline: block.timestamp,
                 amountOut: amount,
@@ -208,6 +214,7 @@ contract AaveBasicStrategy is Ownable {
 
     function _chainlinkPriceFeed(bool isFromAtoB) internal view returns (uint256) {
         require(isSameToken, "Please don't use same tokens to call this functions.");
+        require(isChainlinkWorking, "Sorry, Chainlink can't provide informations for these tokens.");
         uint256 priceToken;
 
         (, int256 tokenA, , , ) = chainlinkTokenA.latestRoundData();
@@ -223,6 +230,7 @@ contract AaveBasicStrategy is Ownable {
     }
 
     function withdraw(address _tokenAddress) public {
+        // A supprimer à terme (sert pour les tests si jamais)
         ERC20 token = ERC20(_tokenAddress);
 
         token.transfer(msg.sender, token.balanceOf(address(this)));
@@ -231,11 +239,18 @@ contract AaveBasicStrategy is Ownable {
     function _strategy(uint256 amount) internal {
         _supplyOnAavePool(tokenAddress, amount);
 
-        uint256 amountToBorrow = (amount * 3) / 4; // C'est de la merde ça, faut voir le rapport entre les deux token avec QuoteUniswap ou Chainlink
+        // vérifier par rapport au Health Factor et tout si je peux bien borrow autant, vérifier d'autres require si besoin jsp
+        uint256 amountToBorrow = (amount * 3) / 4;
+
+        if (isChainlinkWorking) {
+            amountToBorrow = amountToBorrow * _chainlinkPriceFeed(true);
+        } else {
+            amountToBorrow = _quoteWithUniswap(tokenAddress, tokenToBorrow, amountToBorrow, true);
+        }
+
         _borrowOnAave(tokenToBorrow, amountToBorrow, 2); // InterestRateMode : 2 -> Variable (1 -> Stable)
 
-        // Pareil, peut être faire une variable fee globale à partir du constructeur ou uniswap.
-        uint256 amountOut = _swapOnUniswap(tokenToBorrow, tokenAddress, amountToBorrow, 3000, true); // Fees : 3000 = 0.3%
+        uint256 amountOut = _swapOnUniswap(tokenToBorrow, tokenAddress, amountToBorrow, true);
 
         _supplyOnAavePool(tokenAddress, amountOut);
     } // Where the strategy structure is set. (Full path with some gas cost).
@@ -243,7 +258,15 @@ contract AaveBasicStrategy is Ownable {
     function _strategyGasLess(uint256 amount) internal {
         _supplyOnAavePool(tokenAddress, amount);
 
+        // vérifier par rapport au Health Factor et tout si je peux bien borrow autant, vérifier d'autres require si besoin jsp
         uint256 amountToBorrow = (amount * 3) / 4;
+
+        if (isChainlinkWorking) {
+            amountToBorrow = amountToBorrow * _chainlinkPriceFeed(true);
+        } else {
+            amountToBorrow = _quoteWithUniswap(tokenAddress, tokenToBorrow, amountToBorrow, true);
+        }
+
         _borrowOnAave(tokenAddress, amountToBorrow, 2); // InterestRateMode = 2 -> Variable (1 -> Stable)
 
         _supplyOnAavePool(tokenAddress, amountToBorrow);
@@ -253,7 +276,7 @@ contract AaveBasicStrategy is Ownable {
         // Vérifier les montant avec des require (si le mec peut, si ça nique pas le health factor etc)
         _withdrawFromAavePool(tokenAddress, amount);
 
-        uint256 amountOut = _swapOnUniswap(tokenAddress, tokenToBorrow, amount, 3000, true); // Fees : 3000 = 0.3%
+        uint256 amountOut = _swapOnUniswap(tokenAddress, tokenToBorrow, amount, true);
 
         _repayOnAave(tokenToBorrow, amountOut, 2);
 
@@ -261,6 +284,7 @@ contract AaveBasicStrategy is Ownable {
     }
 
     function _exitAaveGasLess(uint256 amount) internal {
+        // Vérifier les montant avec des require (si le mec peut, si ça nique pas le health factor etc)
         _repayWithATokenOnAave(tokenAddress, amount, 2);
 
         _withdrawFromAavePool(tokenAddress, amount);
@@ -277,14 +301,16 @@ contract AaveBasicStrategy is Ownable {
         require(tokenAddress != address(0), "This address is not valid for ERC20 token.");
         // Vérifier l'Allowance et si j'ai bien les thunes
 
-        // Mettre un try/catch pour si ça existe pas avec Chainlink et use uniswapQuoter ou utiliser le bool avec un if
         uint256 newTokenPrice;
 
         if (isSameToken) {
             newTokenPrice = 1;
         } else {
-            newTokenPrice = _chainlinkPriceFeed(true);
-            // uint256 newTokenPrice = _quoteWithUniswap(tokenAddress, tokenToBorrow, 1, true);
+            if (isChainlinkWorking) {
+                newTokenPrice = _chainlinkPriceFeed(true);
+            } else {
+                newTokenPrice = _quoteWithUniswap(tokenAddress, tokenToBorrow, 1, true);
+            }
         }
 
         uint256 contractBalanceLogic = (initialTokenPrice * initialTokenPrice) / newTokenPrice;
@@ -305,14 +331,16 @@ contract AaveBasicStrategy is Ownable {
     function exitStrategy(address userAddress, uint256 amount) public {
         require(getUserBalance(userAddress) >= amount, "You can't withdraw more than your wallet funds.");
 
-        // Mettre un try/catch pour si ça existe pas avec Chainlink et use uniswapQuoter ou utiliser le bool avec un if
         uint256 newTokenPrice;
 
         if (isSameToken) {
             newTokenPrice = 1;
         } else {
-            newTokenPrice = _chainlinkPriceFeed(true);
-            // uint256 newTokenPrice = _quoteWithUniswap(tokenAddress, tokenToBorrow, 1, true);
+            if (isChainlinkWorking) {
+                newTokenPrice = _chainlinkPriceFeed(true);
+            } else {
+                newTokenPrice = _quoteWithUniswap(tokenAddress, tokenToBorrow, 1, true);
+            }
         }
 
         uint256 contractBalanceLogic = (initialTokenPrice * initialTokenPrice) / newTokenPrice;
@@ -342,6 +370,14 @@ contract AaveBasicStrategy is Ownable {
     } // Factory contract tell strategy to recolt yield here.
 
     /// Set & Get functions ///
+
+    function swapChainlinkWorkingBool() public onlyOwner {
+        isChainlinkWorking = !isChainlinkWorking;
+    }
+
+    function getChainlinkWorkingBool() public view returns (bool) {
+        return isChainlinkWorking;
+    }
 
     function setAaveAddress(address _aaveAddress) public onlyOwner {
         // Si l'owner est la factory, faire une fonction dedans qui permet de modifier les adresses
@@ -389,11 +425,31 @@ contract AaveBasicStrategy is Ownable {
         return uniswapQuoterAddress;
     }
 
+    function setUniswapFees(uint24 _uniswapFees) public onlyOwner {
+        require(_uniswapFees != 0, "Uniswap fee not valid.");
+
+        uniswapFees = _uniswapFees;
+    }
+
+    function getUniswapFees() public view returns (uint24) {
+        return uniswapFees;
+    }
+
     function setChainlinkAddressTokenA(address _chainlinkAddressTokenA) public onlyOwner {
         require(_chainlinkAddressTokenA != address(0), "This address is not available");
+
         chainlinkAddressTokenA = _chainlinkAddressTokenA;
-        // Vérifier qu'il existe ou renvoyer une erreur ?
         chainlinkTokenA = AggregatorV3Interface(_chainlinkAddressTokenA);
+
+        try chainlinkTokenA.latestRoundData() {
+            try chainlinkTokenB.latestRoundData() {
+                isChainlinkWorking = true;
+            } catch {
+                isChainlinkWorking = false;
+            }
+        } catch {
+            isChainlinkWorking = false;
+        }
     }
 
     function getChainlinkAddressTokenA() public view returns (address) {
@@ -402,9 +458,19 @@ contract AaveBasicStrategy is Ownable {
 
     function setChainlinkAddressTokenB(address _chainlinkAddressTokenB) public onlyOwner {
         require(_chainlinkAddressTokenB != address(0), "This address is not available");
+
         chainlinkAddressTokenB = _chainlinkAddressTokenB;
-        // Vérifier qu'il existe ou renvoyer une erreur ?
         chainlinkTokenB = AggregatorV3Interface(_chainlinkAddressTokenB);
+
+        try chainlinkTokenB.latestRoundData() {
+            try chainlinkTokenA.latestRoundData() {
+                isChainlinkWorking = true;
+            } catch {
+                isChainlinkWorking = false;
+            }
+        } catch {
+            isChainlinkWorking = false;
+        }
     }
 
     function getChainlinkAddressTokenB() public view returns (address) {
@@ -513,9 +579,11 @@ contract AaveBasicStrategy is Ownable {
             if (vBalance == 0) {
                 realVBalance = 0;
             } else {
-                // try/catch
-                realVBalance = vBalance / _chainlinkPriceFeed(false);
-                // realVBalance = _quoteWithUniswap(aTokenAddress, vTokenAddress, vBalance, false);
+                if (isChainlinkWorking) {
+                    realVBalance = vBalance / _chainlinkPriceFeed(false);
+                } else {
+                    realVBalance = _quoteWithUniswap(aTokenAddress, vTokenAddress, vBalance, false);
+                }
             }
 
             balance = aBalance - realVBalance;
