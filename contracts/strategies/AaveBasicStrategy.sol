@@ -183,7 +183,7 @@ contract AaveBasicStrategy is Ownable {
                 recipient: address(this),
                 deadline: block.timestamp,
                 amountOut: amount,
-                amountInMaximum: amount * 2, // P'tete mettre un uint(max) ou qqc comme ça si y'a gros gap entre les deux cours ?
+                amountInMaximum: type(uint256).max,
                 sqrtPriceLimitX96: 0
             });
 
@@ -315,6 +315,7 @@ contract AaveBasicStrategy is Ownable {
 
         uint256 contractBalanceLogic = (initialTokenPrice * initialTokenPrice) / newTokenPrice;
 
+        // Voir si y'a pas d'autres endroits importants pour mettre à jour la userBalance, genre par rapport à la récolte ou jsp quoi (pas sur)
         userBalances[userAddress] += contractBalanceLogic * amount;
         totalBalance += contractBalanceLogic * amount;
 
