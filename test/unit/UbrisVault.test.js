@@ -1,6 +1,7 @@
 const { assert, expect } = require("chai");
 const { ethers } = require("hardhat");
-const Erc20Token = require("/home/hhk/Desktop/UbrisVault/UbrisVault/artifacts/contracts/mocks/Erc20Token.sol/Erc20Token.json");
+// Pas moyen de mettre un chemin relatif ?
+const Erc20Token = require("/Users/alexiscerio/Desktop/Dossier Alexis/Code/UbrisVault/artifacts/contracts/mocks/Erc20Token.sol/Erc20Token.json");
 const { BigNumber } = require("ethers");
 
 describe("\nUbrisVault Unit Tests\n", function () {
