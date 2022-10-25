@@ -12,4 +12,12 @@ contract Erc20Token is ERC20 {
     ) ERC20(name, symbol) {
         _mint(msg.sender, amount);
     }
+
+    function mint(address account, uint256 amount) public {
+        _mint(account, amount);
+    }
+
+    function burn(address account, uint256 amount) public {
+        _burn(account, amount);
+    }
 }
