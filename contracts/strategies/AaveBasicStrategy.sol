@@ -6,8 +6,6 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@aave/core-v3/contracts/interfaces/IPool.sol";
 import "@aave/periphery-v3/contracts/rewards/interfaces/IRewardsController.sol";
-//import "@aave/core-v3/contracts/protocol/tokenization/AToken.sol";
-//import "@aave/core-v3/contracts/protocol/tokenization/VariableDebtToken.sol";
 import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import "@uniswap/v3-periphery/contracts/interfaces/IQuoter.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
@@ -28,9 +26,9 @@ contract AaveBasicStrategy is Ownable {
     bool private isChainlinkWorking;
 
     IPool private aave;
+    IRewardsController private aaveRewards;
     ISwapRouter private uniswap;
     IQuoter private uniswapQuoter;
-    IRewardsController private aaveRewards;
     AggregatorV3Interface private chainlinkTokenA;
     AggregatorV3Interface private chainlinkTokenB;
 
@@ -200,7 +198,7 @@ contract AaveBasicStrategy is Ownable {
         uint256 amount,
         bool isInput
     ) internal returns (uint256) {
-        require(isSameToken, "Please don't use same tokens to call this functions.");
+        require(!isSameToken, "Please don't use same tokens to call this functions.");
         uint256 amountOutput;
 
         if (isInput) {
@@ -213,7 +211,7 @@ contract AaveBasicStrategy is Ownable {
     }
 
     function _chainlinkPriceFeed(bool isFromAtoB) internal view returns (uint256) {
-        require(isSameToken, "Please don't use same tokens to call this functions.");
+        require(!isSameToken, "Please don't use same tokens to call this functions.");
         require(isChainlinkWorking, "Sorry, Chainlink can't provide informations for these tokens.");
         uint256 priceToken;
 
@@ -285,7 +283,7 @@ contract AaveBasicStrategy is Ownable {
 
     function _exitAaveGasLess(uint256 amount) internal {
         // Vérifier les montant avec des require (si le mec peut, si ça nique pas le health factor etc)
-        _repayWithATokenOnAave(tokenAddress, amount, 2);
+        _repayWithATokenOnAave(tokenToBorrow, amount, 2);
 
         _withdrawFromAavePool(tokenAddress, amount);
     }
@@ -583,7 +581,7 @@ contract AaveBasicStrategy is Ownable {
                 if (isChainlinkWorking) {
                     realVBalance = vBalance / _chainlinkPriceFeed(false);
                 } else {
-                    realVBalance = _quoteWithUniswap(aTokenAddress, vTokenAddress, vBalance, false);
+                    realVBalance = _quoteWithUniswap(aTokenAddress, vTokenAddress, vBalance, false); // Why aTokenAddress là ? Pas sur qu'ils existent sur uniswap
                 }
             }
 
