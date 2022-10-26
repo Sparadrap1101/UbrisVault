@@ -6,18 +6,28 @@ import "./Erc20Token.sol";
 
 contract ChainlinkMock {
     Erc20Token public token;
-    uint256 private tokenValue;
+    int256 private tokenValue;
 
-    constructor(address _token, uint256 _tokenValue) {
+    constructor(address _token, int256 _tokenValue) {
         token = Erc20Token(_token);
         tokenValue = _tokenValue;
     }
 
-    function latestRoundData() public view returns (uint256) {
-        return tokenValue;
+    function latestRoundData()
+        public
+        view
+        returns (
+            uint80 roundId,
+            int256 answer,
+            uint256 startedAt,
+            uint256 updatedAt,
+            uint80 answeredInRound
+        )
+    {
+        return (0, tokenValue, 0, 0, 0);
     }
 
-    function modifyTokenValue(uint256 _newValue) public {
+    function modifyTokenValue(int256 _newValue) public {
         require(_newValue != 0, "Fail from Chainlink: Can't set value to O.");
 
         tokenValue = _newValue;
