@@ -2,13 +2,17 @@
 
 pragma solidity ^0.8.10;
 
-import "./Erc20Token.sol";
-import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
+import {Erc20Token} from "./Erc20Token.sol";
+import {ISwapRouter} from "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 
 contract UniswapMock {
     Erc20Token public tokenA;
     Erc20Token public tokenB;
     uint256 public ratioSwap;
+
+    error UniswapWrongAddress();
+    error UniswapInsufficientBalance();
+    error UniswapRatioZero();
 
     constructor(
         address _tokenA,
@@ -30,17 +34,21 @@ contract UniswapMock {
         }
 
         if (params.tokenIn == address(tokenA)) {
-            require(tokenA.balanceOf(msg.sender) >= params.amountIn, "Fail from Uniswap: Not enough amout for tokenIn.");
+            if (tokenA.balanceOf(msg.sender) < params.amountIn) {
+                revert UniswapInsufficientBalance();
+            }
 
             tokenA.burn(params.recipient, params.amountIn);
             tokenB.mint(params.recipient, amountToMint);
         } else if (params.tokenIn == address(tokenB)) {
-            require(tokenB.balanceOf(msg.sender) >= params.amountIn, "Fail from Uniswap: Not enough amout for tokenIn.");
+            if (tokenB.balanceOf(msg.sender) < params.amountIn) {
+                revert UniswapInsufficientBalance();
+            }
 
             tokenB.burn(params.recipient, params.amountIn);
             tokenA.mint(params.recipient, amountToMint);
         } else {
-            revert();
+            revert UniswapWrongAddress();
         }
 
         return amountToMint;
@@ -56,24 +64,30 @@ contract UniswapMock {
         }
 
         if (params.tokenIn == address(tokenA)) {
-            require(tokenA.balanceOf(msg.sender) >= amountToBurn, "Fail from Uniswap: Not enough amout for tokenIn.");
+            if (tokenA.balanceOf(msg.sender) < amountToBurn) {
+                revert UniswapInsufficientBalance();
+            }
 
             tokenA.burn(params.recipient, amountToBurn);
             tokenB.mint(params.recipient, params.amountOut);
         } else if (params.tokenIn == address(tokenB)) {
-            require(tokenB.balanceOf(msg.sender) >= amountToBurn, "Fail from Uniswap: Not enough amout for tokenIn.");
+            if (tokenB.balanceOf(msg.sender) < amountToBurn) {
+                revert UniswapInsufficientBalance();
+            }
 
             tokenB.burn(params.recipient, amountToBurn);
             tokenA.mint(params.recipient, params.amountOut);
         } else {
-            revert();
+            revert UniswapWrongAddress();
         }
 
         return amountToBurn;
     }
 
     function modifyRatioSwap(uint256 _newRatioSwap) public {
-        require(_newRatioSwap != 0);
+        if (_newRatioSwap == 0) {
+            revert UniswapRatioZero();
+        }
 
         ratioSwap = _newRatioSwap;
     }
