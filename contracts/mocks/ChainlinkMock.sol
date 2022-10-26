@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.10;
 
-import "./Erc20Token.sol";
+import {Erc20Token} from "./Erc20Token.sol";
 
 contract ChainlinkMock {
     Erc20Token public token;
@@ -28,8 +28,6 @@ contract ChainlinkMock {
     }
 
     function modifyTokenValue(int256 _newValue) public {
-        require(_newValue != 0, "Fail from Chainlink: Can't set value to O.");
-
         tokenValue = _newValue;
     }
 }
