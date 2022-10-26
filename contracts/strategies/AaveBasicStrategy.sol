@@ -16,13 +16,7 @@ contract AaveBasicStrategy is Ownable {
     bool private isSameToken;
     address private aTokenAddress;
     address private vTokenAddress;
-    address private aaveAddress;
-    address private aaveRewardsAddress;
-    address private uniswapAddress;
-    address private uniswapQuoterAddress;
     uint24 private uniswapFees;
-    address private chainlinkAddressTokenA;
-    address private chainlinkAddressTokenB;
     bool private isChainlinkWorking;
 
     IPool private aave;
@@ -37,6 +31,9 @@ contract AaveBasicStrategy is Ownable {
     mapping(address => uint256) private userBalances;
 
     // Ajouter des events ?
+
+    error WrongTokenStrategy();
+    error InsufficientBalance();
 
     constructor(
         address _tokenAddress,
@@ -58,19 +55,13 @@ contract AaveBasicStrategy is Ownable {
             isSameToken = false;
         }
 
-        aaveAddress = _aaveAddress;
         aave = IPool(_aaveAddress);
-        aaveRewardsAddress = _aaveRewardsAddress;
         aaveRewards = IRewardsController(_aaveRewardsAddress);
-        uniswapAddress = _uniswapAddress;
         uniswap = ISwapRouter(_uniswapAddress);
-        uniswapQuoterAddress = _uniswapQuoterAddress;
         uniswapQuoter = IQuoter(_uniswapQuoterAddress);
         // Vérifier si je peux pas choper les fees de la pool direct avec un call sur uniswap.
         uniswapFees = _uniswapFees;
-        chainlinkAddressTokenA = _chainlinkAddressTokenA;
         chainlinkTokenA = AggregatorV3Interface(_chainlinkAddressTokenA);
-        chainlinkAddressTokenB = _chainlinkAddressTokenB;
         chainlinkTokenB = AggregatorV3Interface(_chainlinkAddressTokenB);
 
         try chainlinkTokenA.latestRoundData() {
@@ -114,7 +105,7 @@ contract AaveBasicStrategy is Ownable {
 
     function _supplyOnAavePool(address tokenSupply, uint256 amount) internal {
         ERC20 token = ERC20(tokenSupply);
-        token.approve(aaveAddress, amount);
+        token.approve(address(aave), amount);
 
         aave.supply(tokenSupply, amount, address(this), 0);
     }
@@ -137,7 +128,7 @@ contract AaveBasicStrategy is Ownable {
         uint256 interestRateMode
     ) internal {
         ERC20 token = ERC20(tokenRepay);
-        token.approve(aaveAddress, amountToRepay); // Plus tard p'tete approve à l'infini et check juste s'il reste de l'allowance.
+        token.approve(address(aave), amountToRepay); // Plus tard p'tete approve à l'infini et check juste s'il reste de l'allowance.
 
         aave.repay(tokenRepay, amountToRepay, interestRateMode, address(this));
     }
@@ -158,7 +149,7 @@ contract AaveBasicStrategy is Ownable {
     ) public returns (uint256) {
         uint256 amountOut;
         ERC20 token = ERC20(tokenToSwap);
-        token.approve(uniswapAddress, amount);
+        token.approve(address(uniswap), amount);
 
         if (isInput) {
             ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
@@ -198,7 +189,6 @@ contract AaveBasicStrategy is Ownable {
         uint256 amount,
         bool isInput
     ) internal returns (uint256) {
-        require(!isSameToken, "Please don't use same tokens to call this functions.");
         uint256 amountOutput;
 
         if (isInput) {
@@ -211,8 +201,6 @@ contract AaveBasicStrategy is Ownable {
     }
 
     function _chainlinkPriceFeed(bool isFromAtoB) internal view returns (uint256) {
-        require(!isSameToken, "Please don't use same tokens to call this functions.");
-        require(isChainlinkWorking, "Sorry, Chainlink can't provide informations for these tokens.");
         uint256 priceToken;
 
         (, int256 tokenA, , , ) = chainlinkTokenA.latestRoundData();
@@ -295,8 +283,9 @@ contract AaveBasicStrategy is Ownable {
         address userAddress,
         uint256 amount
     ) public payable {
-        require(_tokenAddress == tokenAddress, "This token is not available in this strategy.");
-        require(tokenAddress != address(0), "This address is not valid for ERC20 token.");
+        if (_tokenAddress == tokenAddress) {
+            revert WrongTokenStrategy();
+        }
         // Vérifier l'Allowance et si j'ai bien les thunes
 
         uint256 newTokenPrice;
@@ -328,7 +317,9 @@ contract AaveBasicStrategy is Ownable {
     } // Factory contract deposit user funds here.
 
     function exitStrategy(address userAddress, uint256 amount) public {
-        require(getUserBalance(userAddress) >= amount, "You can't withdraw more than your wallet funds.");
+        if (getUserBalance(userAddress) >= amount) {
+            revert InsufficientBalance();
+        }
 
         uint256 newTokenPrice;
 
@@ -378,55 +369,53 @@ contract AaveBasicStrategy is Ownable {
         return isChainlinkWorking;
     }
 
+    /*
     function setAaveAddress(address _aaveAddress) public onlyOwner {
         // Si l'owner est la factory, faire une fonction dedans qui permet de modifier les adresses
         // des tokens dans les stratégies si nécessaire.
         require(_aaveAddress != address(0), "This address is not available");
-        aaveAddress = _aaveAddress;
         aave = IPool(_aaveAddress);
-    }
+    }*/
 
     function getAaveAddress() public view returns (address) {
-        return aaveAddress;
+        return address(aave);
     }
 
+    /*
     function setAaveRewardsAddress(address _aaveRewardsAddress) public onlyOwner {
         // Si l'owner est la factory, faire une fonction dedans qui permet de modifier les adresses
         // des tokens dans les stratégies si nécessaire.
         require(_aaveRewardsAddress != address(0), "This address is not available");
-        aaveRewardsAddress = _aaveRewardsAddress;
         aaveRewards = IRewardsController(_aaveRewardsAddress);
-    }
+    }*/
 
     function getAaveRewardsAddress() public view returns (address) {
-        return aaveRewardsAddress;
+        return address(aaveRewards);
     }
 
+    /*
     function setUniswapAddress(address _uniswapAddress) public onlyOwner {
         // Si l'owner est la factory, faire une fonction dedans qui permet de modifier les adresses
         // des tokens dans les stratégies si nécessaire.
         require(_uniswapAddress != address(0), "This address is not available");
-        uniswapAddress = _uniswapAddress;
         uniswap = ISwapRouter(_uniswapAddress);
-    }
+    }*/
 
     function getUniswapAddress() public view returns (address) {
-        return uniswapAddress;
+        return address(uniswap);
     }
 
+    /*
     function setUniswapQuoterAddress(address _uniswapQuoterAddress) public onlyOwner {
         require(_uniswapQuoterAddress != address(0), "This address is not available");
-        uniswapQuoterAddress = _uniswapQuoterAddress;
         uniswapQuoter = IQuoter(_uniswapQuoterAddress);
-    }
+    }*/
 
     function getUniswapQuoterAddress() public view returns (address) {
-        return uniswapQuoterAddress;
+        return address(uniswapQuoter);
     }
 
     function setUniswapFees(uint24 _uniswapFees) public onlyOwner {
-        require(_uniswapFees != 0, "Uniswap fee not valid.");
-
         uniswapFees = _uniswapFees;
     }
 
@@ -434,10 +423,10 @@ contract AaveBasicStrategy is Ownable {
         return uniswapFees;
     }
 
+    /*
     function setChainlinkAddressTokenA(address _chainlinkAddressTokenA) public onlyOwner {
         require(_chainlinkAddressTokenA != address(0), "This address is not available");
 
-        chainlinkAddressTokenA = _chainlinkAddressTokenA;
         chainlinkTokenA = AggregatorV3Interface(_chainlinkAddressTokenA);
 
         try chainlinkTokenA.latestRoundData() {
@@ -449,16 +438,16 @@ contract AaveBasicStrategy is Ownable {
         } catch {
             isChainlinkWorking = false;
         }
-    }
+    }*/
 
     function getChainlinkAddressTokenA() public view returns (address) {
-        return chainlinkAddressTokenA;
+        return address(chainlinkTokenA);
     }
 
+    /*
     function setChainlinkAddressTokenB(address _chainlinkAddressTokenB) public onlyOwner {
         require(_chainlinkAddressTokenB != address(0), "This address is not available");
 
-        chainlinkAddressTokenB = _chainlinkAddressTokenB;
         chainlinkTokenB = AggregatorV3Interface(_chainlinkAddressTokenB);
 
         try chainlinkTokenB.latestRoundData() {
@@ -470,12 +459,13 @@ contract AaveBasicStrategy is Ownable {
         } catch {
             isChainlinkWorking = false;
         }
-    }
+    }*/
 
     function getChainlinkAddressTokenB() public view returns (address) {
-        return chainlinkAddressTokenB;
+        return address(chainlinkTokenB);
     }
 
+    /*
     // Potentielles failles si on change les tokens alors qu'y'a déjà eu des supply/borrow ?
     function setTokenToDeposit(address newTokenAddress) public onlyOwner {
         // Si l'owner est la factory, faire une fonction dedans qui permet de modifier les adresses
@@ -489,12 +479,13 @@ contract AaveBasicStrategy is Ownable {
         // Changer de token en cours de route ça peut amener pas mal de merde, déjà faudra changer le uniswapFees ou des trucs comme ça,
         // les balances vont être fucked up pcq ça suit le ratio des deux token initiaux, Chainlink faudra changer les adresses du proxy
         // etc... Un peu la merde, p'tete plus simple de pas les changer et juste les mettre les adresses des token au début et basta.
-    }
+    }*/
 
     function getTokenToDeposit() public view returns (address) {
         return tokenAddress;
     } // Return token address to deposit on strategy.
 
+    /*
     function setTokenToBorrow(address newTokenAddress) public onlyOwner {
         // Si l'owner est la factory, faire une fonction dedans qui permet de modifier les adresses
         // des tokens dans les stratégies si nécessaire.
@@ -505,7 +496,7 @@ contract AaveBasicStrategy is Ownable {
         vTokenAddress = outputs.variableDebtTokenAddress;
 
         // Idem qu'au dessus pour le fait de changer les tokens.
-    }
+    }*/
 
     function getTokenToBorrow() public view returns (address) {
         return tokenToBorrow;
