@@ -2,8 +2,8 @@
 
 pragma solidity ^0.8.10;
 
-import "./Erc20Token.sol";
-import "@aave/core-v3/contracts/interfaces/IPool.sol";
+import {Erc20Token} from "./Erc20Token.sol";
+import {IPool, DataTypes} from "@aave/core-v3/contracts/interfaces/IPool.sol";
 
 contract AaveMock {
     Erc20Token public tokenA;
@@ -13,6 +13,9 @@ contract AaveMock {
 
     mapping(address => uint256) public supplyAmounts;
     mapping(address => uint256) public borrowAmounts;
+
+    error AaveWrongAddress();
+    error AaveInsufficientBalance();
 
     constructor(
         address _tokenA,
@@ -32,9 +35,13 @@ contract AaveMock {
         address onBehalfOf,
         uint16
     ) public {
-        require(asset == address(tokenA), "Fail from Aave: Wrong asset address.");
-        require(amount > 0, "Fail from Aave: Can't supply anything.");
-        require(tokenA.balanceOf(onBehalfOf) >= amount, "Fail from Aave: Don't have enough funds to supply.");
+        if (asset != address(tokenA)) {
+            revert AaveWrongAddress();
+        }
+
+        if (tokenA.balanceOf(onBehalfOf) < amount) {
+            revert AaveInsufficientBalance();
+        }
 
         supplyAmounts[onBehalfOf] += amount;
         tokenA.burn(onBehalfOf, amount);
@@ -46,10 +53,13 @@ contract AaveMock {
         uint256 amount,
         address to
     ) public returns (uint256) {
-        require(asset == address(tokenA), "Fail from Aave: Wrong asset address.");
-        require(amount > 0, "Fail from Aave: Can't withdraw anything.");
-        require(aToken.balanceOf(msg.sender) >= amount, "Fail from Aave: Don't have enough aToken to withdraw.");
-        require(supplyAmounts[msg.sender] >= amount, "Fail from Aave: Don't have enough funds to withdraw.");
+        if (asset != address(tokenA)) {
+            revert AaveWrongAddress();
+        }
+
+        if (supplyAmounts[msg.sender] < amount) {
+            revert AaveInsufficientBalance();
+        }
 
         supplyAmounts[msg.sender] -= amount;
         aToken.burn(msg.sender, amount);
@@ -65,9 +75,13 @@ contract AaveMock {
         uint16,
         address onBehalfOf
     ) public {
-        require(asset == address(tokenB), "Fail from Aave: Wrong asset address.");
-        require(amount > 0, "Fail from Aave: Can't borrow anything.");
-        require(aToken.balanceOf(onBehalfOf) >= amount, "Fail from Aave: Don't have enough collateral to borrow.");
+        if (asset != address(tokenB)) {
+            revert AaveWrongAddress();
+        }
+
+        if (supplyAmounts[onBehalfOf] < amount) {
+            revert AaveInsufficientBalance();
+        }
 
         borrowAmounts[onBehalfOf] += amount;
         tokenB.mint(onBehalfOf, amount);
@@ -80,13 +94,19 @@ contract AaveMock {
         uint256,
         address onBehalfOf
     ) public returns (uint256) {
-        require(asset == address(tokenB), "Fail from Aave: Wrong asset address.");
-        require(amount > 0, "Fail from Aave: Can't repay anything.");
-        require(vToken.balanceOf(onBehalfOf) >= amount, "Fail from Aave: Don't have enough vToken to repay.");
-        require(tokenB.balanceOf(msg.sender) >= amount, "Fail from Aave: Don't have enough tokenB to repay.");
-        require(borrowAmounts[msg.sender] >= amount, "Fail from Aave: Don't have enough debt to repay.");
+        if (asset != address(tokenB)) {
+            revert AaveWrongAddress();
+        }
 
-        borrowAmounts[msg.sender] -= amount;
+        if (borrowAmounts[onBehalfOf] < amount) {
+            revert AaveInsufficientBalance();
+        }
+
+        if (tokenB.balanceOf(msg.sender) < amount) {
+            revert AaveInsufficientBalance();
+        }
+
+        borrowAmounts[onBehalfOf] -= amount;
         tokenB.burn(msg.sender, amount);
         vToken.burn(onBehalfOf, amount);
 
@@ -98,12 +118,17 @@ contract AaveMock {
         uint256 amount,
         uint256
     ) public returns (uint256) {
-        require(asset == address(tokenB), "Fail from Aave: Wrong asset address.");
-        require(amount > 0, "Fail from Aave: Can't repay anything.");
-        require(vToken.balanceOf(msg.sender) >= amount, "Fail from Aave: Don't have enough vToken to repay.");
-        require(borrowAmounts[msg.sender] >= amount, "Fail from Aave: Don't have enough debt to repay.");
-        require(aToken.balanceOf(msg.sender) >= amount, "Fail from Aave: Don't have enough aToken to repay.");
-        require(supplyAmounts[msg.sender] >= amount, "Fail from Aave: Don't have enough funds to repay.");
+        if (asset != address(tokenB)) {
+            revert AaveWrongAddress();
+        }
+
+        if (borrowAmounts[msg.sender] < amount) {
+            revert AaveInsufficientBalance();
+        }
+
+        if (supplyAmounts[msg.sender] < amount) {
+            revert AaveInsufficientBalance();
+        }
 
         supplyAmounts[msg.sender] -= amount;
         aToken.burn(msg.sender, amount);
