@@ -18,11 +18,11 @@ const COINMARKETCAP_API_KEY = process.env.COINMARKETCAP_API_KEY || "key";
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
   defaultNetwork: "hardhat",
-  allowUnlimitedContractSize: true,
   networks: {
     hardhat: {
       chainId: 31337,
       blockConfirmations: 1,
+      allowUnlimitedContractSize: true,
     },
     rinkeby: {
       chainId: 4,
@@ -65,7 +65,16 @@ module.exports = {
     noColors: true,
   },
 
-  solidity: "0.8.10",
+  solidity: {
+    version: "0.8.10",
+    settings: {
+      optimizer: {
+        enabled: true,
+        runs: 1,
+        details: { yul: false },
+      },
+    },
+  },
 
   namedAccounts: {
     deployer: {
