@@ -55,49 +55,43 @@ describe("\nAaveBasicStrategy Unit Tests\n", function () {
     chainlinkB = await ChainlinkB.deploy(token.address, 1);
     await chainlinkB.deployed();
 
-    console.log("1");
-
-    const Strategy = await ethers.getContractFactory("AaveBasicStrategy");
-    console.log("1.5");
+    const Strategy = await ethers.getContractFactory("InternalAaveBasicStrategy");
     strategy = await Strategy.deploy(
       token.address,
       token2.address,
       aave.address,
       aave.address,
       uniswap.address,
-      uniswap.address,
+      //uniswap.address,
       3000,
       chainlinkA.address,
-      chainlinkB.address,
-      { gasLimit: 1000000 }
+      chainlinkB.address
     );
-    console.log("2");
     await strategy.deployed();
-    console.log("3");
 
     await token.connect(owner).approve(strategy.address, BigNumber.from(100_000).mul((1e18).toString()));
-    console.log("4");
     await token.connect(addr1).approve(strategy.address, BigNumber.from(100_000).mul((1e18).toString()));
     await token.connect(addr2).approve(strategy.address, BigNumber.from(100_000).mul((1e18).toString()));
 
-    console.log("5");
     await token2.connect(owner).approve(strategy.address, BigNumber.from(100_000).mul((1e18).toString()));
     await token2.connect(addr1).approve(strategy.address, BigNumber.from(100_000).mul((1e18).toString()));
     await token2.connect(addr2).approve(strategy.address, BigNumber.from(100_000).mul((1e18).toString()));
 
-    console.log("6");
     ownerBalance = (await token.balanceOf(owner.address)).toString();
     amount = BigNumber.from(100).mul((1e18).toString()).toString();
-    console.log("7");
   });
 
   describe("\n-> enterStrategy() :", function () {
-    console.log("Yes.");
     it("Should reverts when you enter address(0)", async function () {
-      console.log("Damned");
+      expect((await strategy.chainlinkPriceFeed(true)).toString()).to.equal("1500");
+    });
+  });
+
+  describe("\n-> enterStrategy() :", function () {
+    it("Should reverts when you enter address(0)", async function () {
       await expect(
         strategy.enterStrategy("0x0000000000000000000000000000000000000000", owner.address, amount)
-      ).to.be.revertedWith("TThis address is not valid for ERC20 token.");
+      ).to.be.revertedWith("WrongTokenStrategy");
     });
   });
 });
