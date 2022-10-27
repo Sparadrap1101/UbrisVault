@@ -69,8 +69,8 @@ module.exports = {
     version: "0.8.10",
     settings: {
       optimizer: {
-        enabled: true,
-        runs: 1,
+        enabled: false,
+        runs: 200,
         details: { yul: false },
       },
     },
