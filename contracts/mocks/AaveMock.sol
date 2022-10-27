@@ -10,6 +10,7 @@ contract AaveMock {
     Erc20Token public tokenB;
     Erc20Token public aToken;
     Erc20Token public vToken;
+    uint256 public ratio;
 
     mapping(address => uint256) public supplyAmounts;
     mapping(address => uint256) public borrowAmounts;
@@ -21,12 +22,14 @@ contract AaveMock {
         address _tokenA,
         address _tokenB,
         address _aToken,
-        address _vToken
+        address _vToken,
+        uint256 _ratio
     ) {
         tokenA = Erc20Token(_tokenA);
         tokenB = Erc20Token(_tokenB);
         aToken = Erc20Token(_aToken);
         vToken = Erc20Token(_vToken);
+        ratio = _ratio;
     }
 
     function supply(
@@ -79,7 +82,9 @@ contract AaveMock {
             revert AaveWrongAddress();
         }
 
-        if (supplyAmounts[onBehalfOf] < amount) {
+        uint256 _amount = amount / ratio;
+
+        if (supplyAmounts[onBehalfOf] < _amount) {
             revert AaveInsufficientBalance();
         }
 
@@ -122,7 +127,9 @@ contract AaveMock {
             revert AaveWrongAddress();
         }
 
-        if (borrowAmounts[msg.sender] < amount) {
+        uint256 _amount = amount * ratio;
+
+        if (borrowAmounts[msg.sender] < _amount) {
             revert AaveInsufficientBalance();
         }
 
@@ -133,8 +140,8 @@ contract AaveMock {
         supplyAmounts[msg.sender] -= amount;
         aToken.burn(msg.sender, amount);
 
-        borrowAmounts[msg.sender] -= amount;
-        vToken.burn(msg.sender, amount);
+        borrowAmounts[msg.sender] -= _amount;
+        vToken.burn(msg.sender, _amount);
 
         return amount;
     }
