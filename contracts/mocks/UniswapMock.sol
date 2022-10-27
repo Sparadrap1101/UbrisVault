@@ -27,16 +27,11 @@ contract UniswapMock {
     function exactInputSingle(ISwapRouter.ExactInputSingleParams memory params) public returns (uint256) {
         uint256 amountToMint;
 
-        if (params.tokenIn == params.tokenOut) {
-            amountToMint = params.amountIn;
-        } else {
-            amountToMint = params.amountIn * ratioSwap;
-        }
-
         if (params.tokenIn == address(tokenA)) {
             if (tokenA.balanceOf(msg.sender) < params.amountIn) {
                 revert UniswapInsufficientBalance();
             }
+            amountToMint = params.amountIn * ratioSwap;
 
             tokenA.burn(params.recipient, params.amountIn);
             tokenB.mint(params.recipient, amountToMint);
@@ -44,6 +39,7 @@ contract UniswapMock {
             if (tokenB.balanceOf(msg.sender) < params.amountIn) {
                 revert UniswapInsufficientBalance();
             }
+            amountToMint = params.amountIn / ratioSwap;
 
             tokenB.burn(params.recipient, params.amountIn);
             tokenA.mint(params.recipient, amountToMint);
@@ -57,13 +53,9 @@ contract UniswapMock {
     function exactOutputSingle(ISwapRouter.ExactOutputSingleParams memory params) public returns (uint256) {
         uint256 amountToBurn;
 
-        if (params.tokenIn == params.tokenOut) {
-            amountToBurn = params.amountOut;
-        } else {
-            amountToBurn = params.amountOut / ratioSwap;
-        }
-
         if (params.tokenIn == address(tokenA)) {
+            amountToBurn = params.amountOut / ratioSwap;
+
             if (tokenA.balanceOf(msg.sender) < amountToBurn) {
                 revert UniswapInsufficientBalance();
             }
@@ -71,6 +63,8 @@ contract UniswapMock {
             tokenA.burn(params.recipient, amountToBurn);
             tokenB.mint(params.recipient, params.amountOut);
         } else if (params.tokenIn == address(tokenB)) {
+            amountToBurn = params.amountOut * ratioSwap;
+
             if (tokenB.balanceOf(msg.sender) < amountToBurn) {
                 revert UniswapInsufficientBalance();
             }
@@ -93,37 +87,25 @@ contract UniswapMock {
     }
 
     function quoteExactInputSingle(
-        address tokenIn,
-        address tokenOut,
+        address,
+        address,
         uint24,
         uint256 amountIn,
         uint160
     ) public view returns (uint256) {
-        uint256 amountToMint;
-
-        if (tokenIn == tokenOut) {
-            amountToMint = amountIn;
-        } else {
-            amountToMint = amountIn * ratioSwap;
-        }
+        uint256 amountToMint = amountIn * ratioSwap;
 
         return amountToMint;
     }
 
     function quoteExactOutputSingle(
-        address tokenIn,
-        address tokenOut,
+        address,
+        address,
         uint24,
         uint256 amountOut,
         uint160
     ) public view returns (uint256) {
-        uint256 amountToBurn;
-
-        if (tokenIn == tokenOut) {
-            amountToBurn = amountOut;
-        } else {
-            amountToBurn = amountOut / ratioSwap;
-        }
+        uint256 amountToBurn = amountOut / ratioSwap;
 
         return amountToBurn;
     }
