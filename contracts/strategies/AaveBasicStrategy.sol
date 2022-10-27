@@ -229,7 +229,8 @@ contract AaveBasicStrategy is Ownable {
         uint256 amountToBorrow = (amount * 3) / 4;
 
         //if (isChainlinkWorking) {
-        amountToBorrow = amountToBorrow * _chainlinkPriceFeed(true); /*
+        amountToBorrow = amountToBorrow * _chainlinkPriceFeed(true);
+        /*
         } else {
             amountToBorrow = _quoteWithUniswap(tokenAddress, tokenToBorrow, amountToBorrow, true);
         }*/
@@ -248,7 +249,7 @@ contract AaveBasicStrategy is Ownable {
         uint256 amountToBorrow = (amount * 3) / 4;
 
         //if (isChainlinkWorking) {
-        amountToBorrow = amountToBorrow * _chainlinkPriceFeed(true); /*
+        amountToBorrow = amountToBorrow * _chainlinkPriceFeed(true); /* // Pas besoin de faire ça si c'est le même token ?
         } else {
             amountToBorrow = _quoteWithUniswap(tokenAddress, tokenToBorrow, amountToBorrow, true);
         }*/
