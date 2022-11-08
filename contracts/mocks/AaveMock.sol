@@ -78,19 +78,27 @@ contract AaveMock {
         uint16,
         address onBehalfOf
     ) public {
-        if (asset != address(tokenB)) {
+        if (asset == address(tokenB)) {
+            uint256 _amount = amount / ratio;
+
+            if (supplyAmounts[onBehalfOf] < _amount) {
+                revert AaveInsufficientBalance();
+            }
+
+            borrowAmounts[onBehalfOf] += amount;
+            tokenB.mint(onBehalfOf, amount);
+            vToken.mint(onBehalfOf, amount);
+        } else if (asset == address(tokenA)) {
+            if (supplyAmounts[onBehalfOf] < amount) {
+                revert AaveInsufficientBalance();
+            }
+
+            borrowAmounts[onBehalfOf] += amount;
+            tokenA.mint(onBehalfOf, amount);
+            vToken.mint(onBehalfOf, amount);
+        } else {
             revert AaveWrongAddress();
         }
-
-        uint256 _amount = amount / ratio;
-
-        if (supplyAmounts[onBehalfOf] < _amount) {
-            revert AaveInsufficientBalance();
-        }
-
-        borrowAmounts[onBehalfOf] += amount;
-        tokenB.mint(onBehalfOf, amount);
-        vToken.mint(onBehalfOf, amount);
     }
 
     function repay(
