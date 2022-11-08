@@ -89,7 +89,7 @@ describe("\nAaveBasicStrategy Unit Tests\n", function () {
     amountToBorrow = amount * ratioSwap;
   });
 
-  describe("\n\nTest Mock functions :\n", function () {
+  describe("\n\nTest Internal functions :\n", function () {
     beforeEach(async function () {
       await tokenA.connect(owner).transfer(strategy.address, amount);
     });
@@ -261,25 +261,51 @@ describe("\nAaveBasicStrategy Unit Tests\n", function () {
         expect(await tokenB.balanceOf(strategy.address)).to.equal(initialBalance + amountToBorrow);
       });
     });
-  });
 
-  describe("\n-> _strategy() :", function () {
-    beforeEach(async function () {
-      await tokenA.connect(owner).transfer(strategy.address, amount);
-      initialBalance = await tokenA.balanceOf(strategy.address);
-      await strategy.strategy(amount);
+    describe("\n-> _strategy() :", function () {
+      it("Should have increase aToken balance by : amount + (3/4 * amount), with leverage.", async function () {
+        initialBalance = await aToken.balanceOf(strategy.address);
+        await strategy.strategy(amount);
+
+        expect(await aToken.balanceOf(strategy.address)).to.equal(initialBalance + (amount * 7) / 4);
+      });
+
+      it("Should have increase vToken balance.", async function () {
+        initialBalance = await vToken.balanceOf(strategy.address);
+        await strategy.strategy(amount);
+
+        expect(await vToken.balanceOf(strategy.address)).to.equal(initialBalance + ((amount * 3) / 4) * ratioSwap);
+      });
+
+      it("Should have decrease tokenA balance.", async function () {
+        initialBalance = await tokenA.balanceOf(strategy.address);
+        await strategy.strategy(amount);
+
+        expect(await tokenA.balanceOf(strategy.address)).to.equal(initialBalance - amount);
+      });
     });
 
-    it("Should have increase aToken balance by : amount + (3/4 * amount), with leverage.", async function () {
-      expect(await aToken.balanceOf(strategy.address)).to.equal((amount * 7) / 4);
-    });
+    describe("\n-> _strategyGasLess() :", function () {
+      it("Should have increase aToken balance by : amount + (3/4 * amount), with leverage.", async function () {
+        initialBalance = await aToken.balanceOf(strategy.address);
+        await strategy.strategyGasLess(amount);
 
-    it("Should have increase vToken balance.", async function () {
-      expect(await vToken.balanceOf(strategy.address)).to.equal(((amount * 3) / 4) * ratioSwap);
-    });
+        expect(await aToken.balanceOf(strategy.address)).to.equal(initialBalance + (amount * 7) / 4);
+      });
 
-    it("Should have decrease tokenA balance.", async function () {
-      expect(await tokenA.balanceOf(strategy.address)).to.equal(initialBalance - amount);
+      it("Should have increase vToken balance.", async function () {
+        initialBalance = await vToken.balanceOf(strategy.address);
+        await strategy.strategyGasLess(amount);
+
+        expect(await vToken.balanceOf(strategy.address)).to.equal(initialBalance + (amount * 3) / 4);
+      });
+
+      it("Should have decrease tokenA balance.", async function () {
+        initialBalance = await tokenA.balanceOf(strategy.address);
+        await strategy.strategyGasLess(amount);
+
+        expect(await tokenA.balanceOf(strategy.address)).to.equal(initialBalance - amount);
+      });
     });
   });
 
