@@ -267,7 +267,7 @@ contract AaveBasicStrategy is Ownable {
 
         _repayOnAave(tokenToBorrow, amountOut, 2);
 
-        _withdrawFromAavePool(tokenAddress, amountOut);
+        _withdrawFromAavePool(tokenAddress, amount);
     }
 
     function _exitAaveGasLess(uint256 amount) internal {
